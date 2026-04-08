@@ -62,7 +62,9 @@ class _CodeScreenState extends State<CodeScreen> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка создания профиля: $e')));
         }
       } else {
-        // Login flow -> home screen
+        // Login flow -> ensure firestore record exists -> home screen
+        await _userService.ensureUserExists(userCredential.user!);
+        
         if (!mounted) return;
         Navigator.pushAndRemoveUntil(
           context,

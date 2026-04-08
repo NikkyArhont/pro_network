@@ -70,8 +70,8 @@ class AppBottomMenu extends StatelessWidget {
       onTap: () => onTap(index),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 44, // Reduced item width to prevent overflow while keeping it clickable
-        height: 35,
+        width: 44, 
+        height: 50,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
