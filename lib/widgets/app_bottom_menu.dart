@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 
 class AppBottomMenu extends StatelessWidget {
   final int currentIndex;
+  final bool isCardActive;
   final Function(int) onTap;
 
   const AppBottomMenu({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.isCardActive = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 345, // Adjusted to fit 6 items with 12px spacing safely
+      width: 370, // Increased to fit 6 wider items
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
       decoration: ShapeDecoration(
         color: Colors.black.withOpacity(0.40),
@@ -45,15 +47,15 @@ class AppBottomMenu extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _buildItem(0, 'Главная', Icons.home_outlined),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           _buildItem(1, 'Окружение', Icons.people_outline),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           _buildItem(2, 'Чаты', Icons.chat_bubble_outline),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           _buildItem(3, 'Поиск', Icons.search_outlined),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           _buildItem(4, 'Визитка', Icons.badge_outlined),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           _buildItem(5, 'Настройки', Icons.settings_outlined),
         ],
       ),
@@ -61,16 +63,19 @@ class AppBottomMenu extends StatelessWidget {
   }
 
   Widget _buildItem(int index, String label, IconData iconData) {
-    final isSelected = currentIndex == index;
-    final activeColor = const Color(0xFFFF8E30);
-    final inactiveColor = const Color(0xFFC6C6C6);
+    bool isSelected = currentIndex == index;
+    if (index == 4 && isCardActive) {
+      isSelected = true;
+    }
+    const activeColor = Color(0xFFFF8E30);
+    const inactiveColor = Color(0xFFC6C6C6);
     final color = isSelected ? activeColor : inactiveColor;
 
     return GestureDetector(
       onTap: () => onTap(index),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 44, 
+        width: 52, // Increased from 44 to prevent wrapping
         height: 50,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -87,10 +92,14 @@ class AppBottomMenu extends StatelessWidget {
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 8,
+                fontSize: 9, // Increased from 8
                 fontFamily: 'Inter',
                 fontWeight: FontWeight.w400,
               ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.visible,
+              softWrap: false,
             ),
           ],
         ),

@@ -12,14 +12,14 @@ class AuthChoiceScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF01191B),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
           child: Column(
             children: [
               Expanded(
                 child: Center(
                   child: Image.asset(
                     AppAssets.logo,
-                    width: 240,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),

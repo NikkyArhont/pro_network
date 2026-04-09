@@ -4,6 +4,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pro_network/models/business_card_draft.dart';
 import 'package:pro_network/widgets/card_contacts_sheet.dart';
 import 'package:pro_network/widgets/card_price_sheet.dart';
+import 'package:pro_network/widgets/app_bottom_menu.dart';
+import 'package:pro_network/widgets/business_card_dialog.dart';
+import 'package:pro_network/screens/create_card_screen.dart';
+import 'package:pro_network/screens/home_screen.dart';
+import 'package:pro_network/services/business_card_service.dart';
 
 class ViewCardScreen extends StatefulWidget {
   final BusinessCardDraft card;
@@ -18,6 +23,67 @@ class ViewCardScreen extends StatefulWidget {
 class _ViewCardScreenState extends State<ViewCardScreen> {
   int _activeTab = 0; // 0: Description, 1: Contacts, 2: Price
   int _newsTab = 0; // 0: News, 1: Proposals
+  final BusinessCardService _cardService = BusinessCardService();
+  bool _isCardDialogOpen = false;
+
+  void _showCardDialog() async {
+    setState(() {
+      _isCardDialogOpen = true;
+    });
+
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black.withOpacity(0.5),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Stack(
+          children: [
+            Positioned(
+              bottom: 100, // Above the menu
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 170), // Aligned with 'Визитка' item
+                  child: BusinessCardDialog(
+                    cardsFuture: _cardService.getMyCards(),
+                    onAddTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CreateCardScreen()),
+                      );
+                    },
+                    onCardTap: (cardData) {
+                      Navigator.pop(context);
+                      final draft = BusinessCardDraft.fromMap(cardData);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ViewCardScreen(card: draft),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 200),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _isCardDialogOpen = false;
+      });
+    }
+  }
 
   void _showContacts() {
     showModalBottomSheet(
@@ -57,7 +123,29 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
                 ],
               ),
             ),
-            _buildBottomNavPlaceholder(),
+            // Floating Bottom Menu
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Center(
+                child: AppBottomMenu(
+                  currentIndex: -1, // No tab selected on this screen
+                  isCardActive: _isCardDialogOpen,
+                  onTap: (index) {
+                    if (index == 4) {
+                      _showCardDialog();
+                    } else {
+                      // Navigate back to Home and switch to the selected tab
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => HomeScreen(initialIndex: index),
+                        ),
+                        (route) => false,
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -343,64 +431,6 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildBottomNavPlaceholder() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0), const Color(0xFF01191B)],
-        ),
-      ),
-      child: Center(
-        child: Container(
-          width: 320,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.4),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFC6C6C6)),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavDraftItem(icon: Icons.home, label: 'Главная', isActive: true),
-              _NavDraftItem(icon: Icons.people, label: 'Окружение'),
-              _NavDraftItem(icon: Icons.chat, label: 'Чаты'),
-              _NavDraftItem(icon: Icons.search, label: 'Поиск'),
-              _NavDraftItem(icon: Icons.credit_card, label: 'Визитка'),
-              _NavDraftItem(icon: Icons.settings, label: 'Настройки'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavDraftItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  const _NavDraftItem({required this.icon, required this.label, this.isActive = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 20, color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6)),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(
-          color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6),
-          fontSize: 8,
-        )),
-      ],
     );
   }
 }

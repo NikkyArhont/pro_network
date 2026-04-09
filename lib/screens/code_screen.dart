@@ -157,7 +157,7 @@ class _CodeScreenState extends State<CodeScreen> {
                 const SizedBox(height: 12),
                 Center(
                   child: Text(
-                    'Мы отправили код подтверждения на номер\n${widget.phoneNumber}',
+                    'Мы отправили код подтверждения на номер ${widget.phoneNumber}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Color(0xFF637B7E), 

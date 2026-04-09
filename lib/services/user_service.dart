@@ -1,8 +1,13 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// Ensures that a user document exists in Firestore.
   /// If it doesn't exist, it creates one with basic information.
@@ -37,17 +42,42 @@ class UserService {
   Future<void> createUserProfile({
     required String name,
     required String city,
-    required String photoUrl,
+    required String photoUrl, // This is local path at this point
   }) async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+    String finalPhotoUrl = '';
+
+    // 1. Upload photo if exists
+    if (photoUrl.isNotEmpty) {
+      try {
+        final ref = _storage.ref().child('avatars').child('${user.uid}.jpg');
+        
+        if (kIsWeb) {
+          // Web upload using XFile to read bytes
+          final XFile file = XFile(photoUrl);
+          final bytes = await file.readAsBytes();
+          await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+        } else {
+          // Mobile upload
+          await ref.putFile(File(photoUrl));
+        }
+        
+        finalPhotoUrl = await ref.getDownloadURL();
+      } catch (e) {
+        print('Error uploading avatar: $e');
+        // Fallback to empty if upload fails
+      }
+    }
+
+    // 2. Save document to Firestore
     await _firestore.collection('users').doc(user.uid).set({
       'uid': user.uid,
       'phoneNumber': user.phoneNumber,
       'displayName': name,
       'city': city,
-      'photoUrl': photoUrl,
+      'photoUrl': finalPhotoUrl,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'status': 'active',

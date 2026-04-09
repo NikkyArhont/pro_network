@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "181465237999",
-    "project_id": "prosocialnetwork",
-    "storage_bucket": "prosocialnetwork.firebasestorage.app"
+    "project_number": "672968677764",
+    "project_id": "mla-project-1",
+    "storage_bucket": "mla-project-1.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:181465237999:android:7d6529c46a04a0afe08e1a",
+        "mobilesdk_app_id": "1:672968677764:android:b7c58aaf27edeede5025d1",
         "android_client_info": {
           "package_name": "com.example.pro_network"
         }
@@ -15,7 +15,26 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBj2Z4hqqbbWw6LH7rIrRaOVDJUVI85URg"
+          "current_key": "AIzaSyALUiFSkdYDi8soFzXFP_Ye8opY8fN08kM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:672968677764:android:0cb632e2f1d2b7f95025d1",
+        "android_client_info": {
+          "package_name": "com.mycompany.mlaproject1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyALUiFSkdYDi8soFzXFP_Ye8opY8fN08kM"
         }
       ],
       "services": {

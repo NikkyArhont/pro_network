@@ -13,15 +13,23 @@ import 'package:pro_network/models/business_card_draft.dart';
 import 'package:pro_network/services/business_card_service.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialIndex;
+  const HomeScreen({super.key, this.initialIndex = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+  }
   final BusinessCardService _cardService = BusinessCardService();
+  bool _isCardDialogOpen = false;
 
   final List<Widget> _screens = const [
     FeedScreen(),       // 0: Главная
@@ -32,8 +40,12 @@ class _HomeScreenState extends State<HomeScreen> {
     SettingsScreen(),   // 5: Настройки
   ];
 
-  void _showCardDialog() {
-    showGeneralDialog(
+  void _showCardDialog() async {
+    setState(() {
+      _isCardDialogOpen = true;
+    });
+    
+    await showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: '',
@@ -79,6 +91,12 @@ class _HomeScreenState extends State<HomeScreen> {
         return FadeTransition(opacity: animation, child: child);
       },
     );
+
+    if (mounted) {
+      setState(() {
+        _isCardDialogOpen = false;
+      });
+    }
   }
 
   @override
@@ -101,12 +119,14 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Center(
               child: AppBottomMenu(
                 currentIndex: _currentIndex,
+                isCardActive: _isCardDialogOpen,
                 onTap: (index) {
-                  setState(() {
-                    _currentIndex = index;
-                  });
                   if (index == 4) {
                     _showCardDialog();
+                  } else {
+                    setState(() {
+                      _currentIndex = index;
+                    });
                   }
                 },
               ),

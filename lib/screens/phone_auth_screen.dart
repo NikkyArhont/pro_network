@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pro_network/widgets/app_text_field.dart';
 import 'package:pro_network/services/auth_service.dart';
 import 'package:pro_network/screens/code_screen.dart';
@@ -28,8 +29,14 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
 
     setState(() => _isLoading = true);
 
+    // Normalize phone number: ensure it starts with '+'
+    String normalizedPhone = phone;
+    if (!normalizedPhone.startsWith('+')) {
+      normalizedPhone = '+$normalizedPhone';
+    }
+
     _authService.verifyPhoneNumber(
-      phoneNumber: phone,
+      phoneNumber: normalizedPhone,
       onCodeSent: (verificationId) {
         setState(() => _isLoading = false);
         Navigator.push(
@@ -39,7 +46,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
               verificationId: verificationId,
               isLogin: widget.isLogin,
               profileData: widget.profileData,
-              phoneNumber: '+7 $phone',
+              phoneNumber: normalizedPhone,
             ),
           ),
         );
@@ -114,7 +121,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                 AppTextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  hintText: '+7 (900) 000-00-00', // Убрали prefix и перенесли в hint
+                  hintText: '+7 (900) 000-00-00',
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                  ],
                 ),
                 const Spacer(),
                 if (_isLoading)

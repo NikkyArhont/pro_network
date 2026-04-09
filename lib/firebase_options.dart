@@ -41,37 +41,37 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBf5nszYFwE2uUbFeSvlBejAC-DP-Qbytk',
-    appId: '1:181465237999:web:f1f54d924bf97ef0e08e1a',
-    messagingSenderId: '181465237999',
-    projectId: 'prosocialnetwork',
-    authDomain: 'prosocialnetwork.firebaseapp.com',
-    storageBucket: 'prosocialnetwork.firebasestorage.app',
+    apiKey: 'AIzaSyCOotFFIBnExwlJNe_eliShATAB8ydb_SU',
+    appId: '1:672968677764:web:d7d68e865793bd545025d1',
+    messagingSenderId: '672968677764',
+    projectId: 'mla-project-1',
+    authDomain: 'mla-project-1.firebaseapp.com',
+    storageBucket: 'mla-project-1.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBj2Z4hqqbbWw6LH7rIrRaOVDJUVI85URg',
-    appId: '1:181465237999:android:7d6529c46a04a0afe08e1a',
-    messagingSenderId: '181465237999',
-    projectId: 'prosocialnetwork',
-    storageBucket: 'prosocialnetwork.firebasestorage.app',
+    apiKey: 'AIzaSyALUiFSkdYDi8soFzXFP_Ye8opY8fN08kM',
+    appId: '1:672968677764:android:b7c58aaf27edeede5025d1',
+    messagingSenderId: '672968677764',
+    projectId: 'mla-project-1',
+    storageBucket: 'mla-project-1.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDJXLMdo3LL5n_1DgP76ux1Dxa5DI6D0VA',
-    appId: '1:181465237999:ios:f97368e9e6842424e08e1a',
-    messagingSenderId: '181465237999',
-    projectId: 'prosocialnetwork',
-    storageBucket: 'prosocialnetwork.firebasestorage.app',
+    apiKey: 'AIzaSyAWd2PMZl3UlwfTX9UhZnx8iBYTgjrrWUk',
+    appId: '1:672968677764:ios:abb499b6f2c5b8135025d1',
+    messagingSenderId: '672968677764',
+    projectId: 'mla-project-1',
+    storageBucket: 'mla-project-1.firebasestorage.app',
     iosBundleId: 'com.example.proNetwork',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDJXLMdo3LL5n_1DgP76ux1Dxa5DI6D0VA',
-    appId: '1:181465237999:ios:f97368e9e6842424e08e1a',
-    messagingSenderId: '181465237999',
-    projectId: 'prosocialnetwork',
-    storageBucket: 'prosocialnetwork.firebasestorage.app',
+    apiKey: 'AIzaSyAWd2PMZl3UlwfTX9UhZnx8iBYTgjrrWUk',
+    appId: '1:672968677764:ios:abb499b6f2c5b8135025d1',
+    messagingSenderId: '672968677764',
+    projectId: 'mla-project-1',
+    storageBucket: 'mla-project-1.firebasestorage.app',
     iosBundleId: 'com.example.proNetwork',
   );
 
@@ -83,4 +83,5 @@ class DefaultFirebaseOptions {
     authDomain: 'prosocialnetwork.firebaseapp.com',
     storageBucket: 'prosocialnetwork.firebasestorage.app',
   );
+
 }

@@ -5,12 +5,87 @@ import 'package:pro_network/screens/auth_choice_screen.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-    if (!context.mounted) return;
-    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AuthChoiceScreen()),
-      (route) => false,
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF0C3135),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF557578), width: 1),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Вы уверены что хотите выйти?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFF557578)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Нет',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await FirebaseAuth.instance.signOut();
+                          if (context.mounted) {
+                            Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const AuthChoiceScreen()),
+                              (route) => false,
+                            );
+                          }
+                        },
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF334D50),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Выйти',
+                            style: TextStyle(
+                              color: Color(0xFFFF8E30),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -94,7 +169,7 @@ class SettingsScreen extends StatelessWidget {
 
                 // Logout Button
                 GestureDetector(
-                  onTap: () => _logout(context),
+                  onTap: () => _showLogoutDialog(context),
                   child: Container(
                     width: double.infinity,
                     height: 35,

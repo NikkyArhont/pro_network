@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pro_network/screens/phone_auth_screen.dart';
+import 'package:pro_network/screens/auth_choice_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -58,7 +58,7 @@ class ProfileScreen extends StatelessWidget {
                           if (context.mounted) {
                             Navigator.pushAndRemoveUntil(
                               context,
-                              MaterialPageRoute(builder: (_) => const PhoneAuthScreen(isLogin: true)),
+                              MaterialPageRoute(builder: (_) => const AuthChoiceScreen()),
                               (route) => false,
                             );
                           }
