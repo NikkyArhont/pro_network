@@ -11,6 +11,10 @@ class BusinessCardDraft {
   XFile? photoFile;
   String description = '';
   
+  // Activation
+  bool isActive = false;
+  dynamic activeUntil; // Timestamp or null
+  
   // Contacts
   String status = '';
   String workAddress = '';
@@ -43,6 +47,8 @@ class BusinessCardDraft {
     draft.company = map['company'] ?? '';
     draft.tags = List<String>.from(map['tags'] ?? []);
     draft.description = map['description'] ?? '';
+    draft.isActive = map['isActive'] ?? false;
+    draft.activeUntil = map['activeUntil'];
     draft.workAddress = map['address'] ?? '';
     draft.phone = map['phone'] ?? '';
     draft.email = map['email'] ?? '';
@@ -88,6 +94,8 @@ class BusinessCardDraft {
       'priceList': priceList,
       'postPhotoUrl': postPhotoUrl,
       'postDescription': postDescription,
+      'isActive': isActive,
+      'activeUntil': activeUntil,
       'workMode': workMode.toMap(),
     };
   }

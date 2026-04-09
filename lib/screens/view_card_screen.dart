@@ -8,7 +8,10 @@ import 'package:pro_network/widgets/app_bottom_menu.dart';
 import 'package:pro_network/widgets/business_card_dialog.dart';
 import 'package:pro_network/screens/create_card_screen.dart';
 import 'package:pro_network/screens/home_screen.dart';
+import 'package:pro_network/screens/edit_card_screen.dart';
 import 'package:pro_network/services/business_card_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class ViewCardScreen extends StatefulWidget {
   final BusinessCardDraft card;
@@ -25,6 +28,68 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
   int _newsTab = 0; // 0: News, 1: Proposals
   final BusinessCardService _cardService = BusinessCardService();
   bool _isCardDialogOpen = false;
+  bool _isActivating = false;
+  late BusinessCardDraft _currentCard;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentCard = widget.card;
+  }
+
+  Future<void> _refreshCard() async {
+    if (widget.cardId == null) return;
+    
+    // In a real app, we'd fetch the specific document by ID.
+    // For now, let's just reload all cards and find this one, or assume we'll update it.
+    final cards = await _cardService.getMyCards();
+    final updatedCardMap = cards.firstWhere((c) => c['id'] == widget.cardId, orElse: () => {});
+    
+    if (updatedCardMap.isNotEmpty) {
+      setState(() {
+        _currentCard = BusinessCardDraft.fromMap(updatedCardMap);
+      });
+    }
+  }
+
+  Future<void> _activateCard() async {
+    if (widget.cardId == null) return;
+    
+    setState(() => _isActivating = true);
+    final success = await _cardService.activateCard(widget.cardId!);
+    
+    if (mounted) {
+      if (success) {
+        setState(() {
+          _currentCard.isActive = true;
+          // Set to 30 days from now for immediate UI update
+          _currentCard.activeUntil = Timestamp.fromDate(DateTime.now().add(const Duration(days: 30)));
+          _isActivating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Визитка успешно активирована на 30 дней!')),
+        );
+      } else {
+        setState(() => _isActivating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ошибка при активации.')),
+        );
+      }
+    }
+  }
+
+  String _formatActualDate(dynamic date) {
+    if (date == null) return '';
+    DateTime dateTime;
+    if (date is Timestamp) {
+      dateTime = date.toDate();
+    } else if (date is DateTime) {
+      dateTime = date;
+    } else {
+      return '';
+    }
+    return DateFormat('dd.MM.yyyy').format(dateTime);
+  }
 
   void _showCardDialog() async {
     setState(() {
@@ -55,16 +120,18 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
                         MaterialPageRoute(builder: (_) => const CreateCardScreen()),
                       );
                     },
-                    onCardTap: (cardData) {
-                      Navigator.pop(context);
-                      final draft = BusinessCardDraft.fromMap(cardData);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ViewCardScreen(card: draft),
-                        ),
-                      );
-                    },
+                      onCardTap: (cardData) {
+                        Navigator.pop(context);
+                        final draft = BusinessCardDraft.fromMap(cardData);
+                        final cardId = cardData['id'] ?? '';
+                        print('DEBUG: Switching to cardId: $cardId from dialog');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ViewCardScreen(card: draft, cardId: cardId),
+                          ),
+                        ).then((_) => _refreshCard());
+                      },
                   ),
                 ),
               ),
@@ -246,30 +313,50 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
               ),
             ],
           ),
-          // Activate Button
+          // Activate Button or Expiry Date
           Center(
-            child: Container(
-              width: 230,
-              height: 35,
-              decoration: ShapeDecoration(
-                color: const Color(0xFF334D50),
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(width: 2, color: Color(0xFFFF8E30)),
-                  borderRadius: BorderRadius.circular(10),
+            child: widget.card.isActive 
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Активна до ${_formatActualDate(widget.card.activeUntil)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.10,
+                    ),
+                  ),
+                )
+              : GestureDetector(
+                  onTap: _isActivating || widget.cardId == null ? null : _activateCard,
+                  child: Container(
+                    width: 230,
+                    height: 35,
+                    decoration: ShapeDecoration(
+                      color: const Color(0xFF334D50),
+                      shape: RoundedRectangleBorder(
+                        side: const BorderSide(width: 2, color: Color(0xFFFF8E30)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: _isActivating 
+                      ? const SizedBox(
+                          width: 20, height: 20, 
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                        )
+                      : const Text(
+                          'Активировать',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.10,
+                          ),
+                        ),
+                  ),
                 ),
-              ),
-              alignment: Alignment.center,
-              child: const Text(
-                'Активировать',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontFamily: 'Russo One',
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0.10,
-                ),
-              ),
-            ),
           ),
         ],
       ),
@@ -296,19 +383,33 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
               _buildTabText('Контакты', 1, onTap: _showContacts),
               _buildTabText('Прайс', 2, onTap: _showPrice),
               const Spacer(),
-              const Icon(Icons.edit_note, color: Colors.white, size: 20),
+              GestureDetector(
+                onTap: () {
+                  print('DEBUG: Opening EditCardScreen from ViewCardScreen with cardId: ${widget.cardId}');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditCardScreen(
+                        card: _currentCard ?? widget.card,
+                        cardId: widget.cardId,
+                      ),
+                    ),
+                  ).then((_) => _refreshCard());
+                },
+                child: const Icon(Icons.edit_note, color: Colors.white, size: 20),
+              ),
             ],
           ),
           // Description Text
           Text(
-            widget.card.description,
+            _currentCard.description,
             style: const TextStyle(color: Colors.white, fontSize: 12, height: 1.33),
           ),
           // Tags
           Wrap(
             spacing: 10,
             runSpacing: 5,
-            children: widget.card.tags.map((tag) => _buildTag(tag)).toList(),
+            children: _currentCard.tags.map((tag) => _buildTag(tag)).toList(),
           ),
         ],
       ),

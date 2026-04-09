@@ -1,12 +1,16 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pro_network/models/business_card_draft.dart';
 
 class BusinessCardService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'pronetwork',
+  );
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -81,6 +85,8 @@ class BusinessCardService {
       data['createdAt'] = FieldValue.serverTimestamp();
       data['updatedAt'] = FieldValue.serverTimestamp();
       data['id'] = cardId;
+      data['isActive'] = false; // New cards are inactive by default
+      data['activeUntil'] = null;
 
       await cardDoc.set(data).timeout(const Duration(seconds: 15), onTimeout: () {
         throw Exception('Firestore request timed out');
@@ -102,13 +108,45 @@ class BusinessCardService {
       final querySnapshot = await _firestore
           .collection('business_cards')
           .where('userId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
+          // .orderBy('createdAt', descending: true) // Temporarily disabled while index is building
           .get();
 
-      return querySnapshot.docs.map((doc) => doc.data()).toList();
+      return querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id; // Force ID to be the document ID for reliability
+        return data;
+      }).toList();
     } catch (e) {
       print('Error fetching cards: $e');
       return [];
+    }
+  }
+
+  /// Activates a card for 30 days.
+  Future<bool> activateCard(String cardId) async {
+    try {
+      final activeUntil = DateTime.now().add(const Duration(days: 30));
+      await _firestore.collection('business_cards').doc(cardId).update({
+        'isActive': true,
+        'activeUntil': Timestamp.fromDate(activeUntil),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      print('Error activating card: $e');
+      return false;
+    }
+  }
+
+  /// Updates an existing business card.
+  Future<bool> updateCard(String cardId, Map<String, dynamic> data) async {
+    try {
+      data['updatedAt'] = FieldValue.serverTimestamp();
+      await _firestore.collection('business_cards').doc(cardId).update(data);
+      return true;
+    } catch (e) {
+      print('Error updating card: $e');
+      return false;
     }
   }
 }

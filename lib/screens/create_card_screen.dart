@@ -4,8 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pro_network/models/business_card_draft.dart';
 import 'package:pro_network/services/business_card_service.dart';
+import 'package:pro_network/screens/card_management_screen.dart';
 import 'package:pro_network/widgets/app_text_field.dart';
 import 'package:pro_network/widgets/business_card_preview.dart';
+import 'package:pro_network/utils/constants.dart';
+import 'package:pro_network/widgets/category_selector_sheet.dart';
+import 'package:pro_network/widgets/work_mode_sheet.dart';
 
 class CreateCardScreen extends StatefulWidget {
   const CreateCardScreen({super.key});
@@ -285,43 +289,20 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   }
 
   void _showCategoryPicker() {
-    final categories = ['Услуги', 'Торговля', 'Производство', 'Инвестиции'];
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF01191B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: categories.map((cat) {
-              return ListTile(
-                title: Text(cat, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
-                onTap: () {
-                  setState(() {
-                    _draft.category = cat;
-                  });
-                  Navigator.pop(context);
-                },
-              );
-            }).toList(),
-          ),
-        );
+    CategorySelectorSheet.show(
+      context,
+      onSelect: (cat) {
+        setState(() {
+          _draft.category = cat;
+        });
       },
     );
   }
 
-  static const List<String> _allTags = [
-    'КАСКО', 'ОСАГО', 'ДМС', 'Страхование имущества', 'Страхование жизни',
-    'Юридическая помощь', 'Оценка ущерба', 'Консультация', 'Ремонт авто', 'Техосмотр'
-  ];
   String _tagSearchQuery = '';
 
   Widget _buildTagsStep() {
-    final filteredTags = _allTags
+    final filteredTags = AppConstants.allTags
         .where((tag) => tag.toLowerCase().contains(_tagSearchQuery.toLowerCase()) && !_draft.tags.contains(tag))
         .toList();
 
@@ -523,7 +504,17 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
             const SizedBox(height: 15),
             _buildFieldLabel('Режим работы'),
             GestureDetector(
-              onTap: _showWorkModePicker,
+              onTap: () {
+                WorkModeSheet.show(
+                  context,
+                  initialWorkMode: _draft.workMode,
+                  onSave: (newMode) {
+                    setState(() {
+                      _draft.workMode = newMode;
+                    });
+                  },
+                );
+              },
               child: Container(
                 height: 35,
                 padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -620,169 +611,6 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
     );
   }
 
-  void _showWorkModePicker() {
-    final days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-    final startCtrl = TextEditingController(text: _draft.workMode.startTime);
-    final endCtrl = TextEditingController(text: _draft.workMode.endTime);
-    List<String> selectedDays = List.from(_draft.workMode.workDays);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF01191B),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Режим работы', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500)),
-                      IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Align(alignment: Alignment.centerLeft, child: Text('Часы', style: TextStyle(color: Color(0xFFFF8E30), fontSize: 14))),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildTimeInput(startCtrl, '10:00'),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildTimeInput(endCtrl, '19:00'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Align(alignment: Alignment.centerLeft, child: Text('Дни недели', style: TextStyle(color: Color(0xFFFF8E30), fontSize: 14))),
-                  const SizedBox(height: 10),
-                  ...days.map((day) {
-                    final isSelected = selectedDays.contains(day);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: GestureDetector(
-                        onTap: () {
-                          setModalState(() {
-                            if (isSelected) {
-                              selectedDays.remove(day);
-                            } else {
-                              selectedDays.add(day);
-                            }
-                          });
-                        },
-                        child: isSelected
-                            ? Container(
-                                width: double.infinity,
-                                height: 29,
-                                padding: const EdgeInsets.symmetric(horizontal: 15),
-                                decoration: ShapeDecoration(
-                                  color: const Color(0xFF557578),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      day,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontFamily: 'Inter',
-                                        fontWeight: FontWeight.w400,
-                                        letterSpacing: 0.10,
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 15,
-                                      height: 15,
-                                      decoration: ShapeDecoration(
-                                        color: Colors.white,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                                      ),
-                                      child: const Icon(Icons.check, size: 12, color: Color(0xFF557578)),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : Container(
-                                width: double.infinity,
-                                height: 29,
-                                padding: const EdgeInsets.symmetric(horizontal: 15),
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  day,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontFamily: 'Inter',
-                                  ),
-                                ),
-                              ),
-                      ),
-                    );
-                  }).toList(),
-                  const SizedBox(height: 20),
-                  Container(
-                    width: double.infinity,
-                    height: 40,
-                    decoration: BoxDecoration(color: const Color(0xFF334D50), borderRadius: BorderRadius.circular(10)),
-                    child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _draft.workMode.startTime = startCtrl.text;
-                          _draft.workMode.endTime = endCtrl.text;
-                          _draft.workMode.workDays = selectedDays;
-                        });
-                        Navigator.pop(context);
-                      },
-                      child: const Center(child: Text('Сохранить', style: TextStyle(color: Colors.white))),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildTimeInput(TextEditingController controller, String hint) {
-    return Container(
-      height: 35,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0C3135),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Center(
-        child: TextField(
-          controller: controller,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: Color(0xFF637B7E)),
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            filled: false,
-            contentPadding: EdgeInsets.zero,
-          ),
-          keyboardType: TextInputType.datetime,
-        ),
-      ),
-    );
-  }
 
   Widget _buildPriceStep() {
     return _buildStepBase(
@@ -1028,9 +856,13 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       setState(() => _isLoading = false);
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Визитка и пост успешно опубликованы!')),
+          SnackBar(content: Text(withPost ? 'Визитка и пост успешно опубликованы!' : 'Визитка успешно создана!')),
         );
-        Navigator.pop(context);
+        // Navigate to management screen
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const CardManagementScreen()),
+          (route) => route.isFirst, // Go back to main and then to card management
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Ошибка при публикации. Попробуйте еще раз.')),
@@ -1104,17 +936,17 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Center(
-                child: Text(
-                  'Пропустить',
-                  style: TextStyle(
-                    color: Color(0xFF557578),
-                    fontSize: 14,
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w400,
+                child: Center(
+                  child: Text(
+                    _currentStep == _totalSteps ? 'Создать визитку без поста' : 'Пропустить',
+                    style: const TextStyle(
+                      color: Color(0xFF557578),
+                      fontSize: 14,
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ),
-              ),
             ),
             ),
           ],

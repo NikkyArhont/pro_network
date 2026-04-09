@@ -1,12 +1,16 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 
 class UserService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'pronetwork',
+  );
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// Ensures that a user document exists in Firestore.
@@ -45,33 +49,37 @@ class UserService {
     required String photoUrl, // This is local path at this point
   }) async {
     final User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      print('UserService: No user to create profile for');
+      return;
+    }
 
+    print('UserService: Starting profile creation for ${user.uid}...');
     String finalPhotoUrl = '';
 
     // 1. Upload photo if exists
     if (photoUrl.isNotEmpty) {
       try {
+        print('UserService: Attempting photo upload...');
         final ref = _storage.ref().child('avatars').child('${user.uid}.jpg');
         
         if (kIsWeb) {
-          // Web upload using XFile to read bytes
           final XFile file = XFile(photoUrl);
           final bytes = await file.readAsBytes();
-          await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+          await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg')).timeout(const Duration(seconds: 15));
         } else {
-          // Mobile upload
-          await ref.putFile(File(photoUrl));
+          await ref.putFile(File(photoUrl)).timeout(const Duration(seconds: 15));
         }
         
-        finalPhotoUrl = await ref.getDownloadURL();
+        finalPhotoUrl = await ref.getDownloadURL().timeout(const Duration(seconds: 10));
+        print('UserService: Photo uploaded successfully: $finalPhotoUrl');
       } catch (e) {
-        print('Error uploading avatar: $e');
-        // Fallback to empty if upload fails
+        print('UserService: Photo upload failed (continuing without photo): $e');
       }
     }
 
     // 2. Save document to Firestore
+    print('UserService: Saving Firestore document...');
     await _firestore.collection('users').doc(user.uid).set({
       'uid': user.uid,
       'phoneNumber': user.phoneNumber,
@@ -81,7 +89,44 @@ class UserService {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'status': 'active',
+    }).timeout(const Duration(seconds: 15), onTimeout: () {
+      print('UserService: Firestore operation timed out!');
+      throw Exception('Время ожидания сохранения профиля истекло. Проверьте соединение или настройки Firebase.');
     });
+    
+    print('UserService: Profile created successfully in Firestore.');
+  }
+
+  /// Uploads user avatar to Firebase Storage.
+  Future<String?> uploadAvatar(String uid, XFile imageFile) async {
+    try {
+      final ref = _storage.ref().child('avatars').child('$uid.jpg');
+      
+      if (kIsWeb) {
+        final bytes = await imageFile.readAsBytes();
+        await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      } else {
+        await ref.putFile(File(imageFile.path));
+      }
+      
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading avatar: $e');
+      return null;
+    }
+  }
+
+  /// Updates user data in Firestore.
+  Future<void> updateUserProfile({
+    required String uid,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      await _firestore.collection('users').doc(uid).update(data);
+    } catch (e) {
+      print('Error updating user profile: $e');
+      rethrow;
+    }
   }
 
   /// Gets user data from Firestore.
