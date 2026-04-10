@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pro_network/screens/auth_choice_screen.dart';
 import 'package:pro_network/screens/profile_edit_screen.dart';
 import 'package:pro_network/screens/card_management_screen.dart';
+import 'package:pro_network/screens/notifications_screen.dart';
 import 'package:pro_network/services/user_service.dart';
 import 'package:pro_network/utils/constants.dart';
 
@@ -207,7 +208,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 60),
 
                 // Settings Items
-                _buildSettingsItem(Icons.notifications_none, 'Уведомления'),
+                _buildSettingsItem(
+                  Icons.notifications_none, 
+                  'Уведомления',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                  ),
+                ),
                 _buildSettingsItem(
                   Icons.info_outline, 
                   'Информация о себе',

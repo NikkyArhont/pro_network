@@ -140,6 +140,101 @@ class _EditCardScreenState extends State<EditCardScreen> {
     }
   }
 
+  void _showDeleteCardDialog() {
+    if (widget.cardId == null || widget.cardId!.isEmpty) return;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF0C3135),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF557578), width: 1),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Вы точно хотите удалить визитку?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFF557578)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Нет',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(context); // Close dialog
+                          setState(() => _isLoading = true);
+                          final success = await _cardService.deleteCard(widget.cardId!);
+                          if (mounted) {
+                            setState(() => _isLoading = false);
+                            if (success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Визитка удалена')),
+                              );
+                              Navigator.pop(context); // Return to previous screen
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Ошибка при удалении')),
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF334D50),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Да, удалить',
+                            style: TextStyle(
+                              color: Color(0xFFFF8E30),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,6 +250,12 @@ class _EditCardScreenState extends State<EditCardScreen> {
           'Редактирование визитки',
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white),
+            onPressed: _showDeleteCardDialog,
+          ),
+        ],
       ),
       body: Stack(
         children: [

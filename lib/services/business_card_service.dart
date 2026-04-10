@@ -114,6 +114,7 @@ class BusinessCardService {
       return querySnapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id; // Force ID to be the document ID for reliability
+        print('DEBUG: Card found in Firestore with ID: ${doc.id}');
         return data;
       }).toList();
     } catch (e) {
@@ -146,6 +147,17 @@ class BusinessCardService {
       return true;
     } catch (e) {
       print('Error updating card: $e');
+      return false;
+    }
+  }
+
+  /// Deletes a business card from Firestore.
+  Future<bool> deleteCard(String cardId) async {
+    try {
+      await _firestore.collection('business_cards').doc(cardId).delete();
+      return true;
+    } catch (e) {
+      print('Error deleting card: $e');
       return false;
     }
   }

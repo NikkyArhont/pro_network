@@ -34,6 +34,7 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
   @override
   void initState() {
     super.initState();
+    print('DEBUG: ViewCardScreen initialized with cardId: ${widget.cardId}');
     _currentCard = widget.card;
   }
 
