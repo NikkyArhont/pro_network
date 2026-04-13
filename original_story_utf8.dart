@@ -1,9 +1,8 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/story_service.dart';
 
 class CreateStoryScreen extends StatefulWidget {
   const CreateStoryScreen({super.key});
@@ -18,9 +17,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   int _selectedCameraIndex = 0;
   XFile? _capturedFile;
   final ImagePicker _picker = ImagePicker();
-  final StoryService _storyService = StoryService();
   bool _isCameraReady = false;
-  bool _isUploading = false;
 
   @override
   void initState() {
@@ -111,6 +108,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       backgroundColor: const Color(0xFF01191B),
       body: Stack(
         children: [
+          // Top Status Bar Area
+          _buildTopBar(),
+
           // Camera View / Preview Area
           _buildPreviewArea(),
 
@@ -123,7 +123,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           // Back Button
           Positioned(
             left: 20,
-            top: 40,
+            top: 70,
             child: GestureDetector(
               onTap: () => Navigator.pop(context),
               child: Container(
@@ -137,40 +137,67 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          // Loading Overlay
-          if (_isUploading)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Color(0xFFFF8E30)),
-                    SizedBox(height: 16),
-                    Text(
-                      'Публикация...',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
+  Widget _buildTopBar() {
+    return Positioned(
+      left: 0,
+      top: 0,
+      child: Container(
+        width: MediaQuery.of(context).size.width,
+        height: 54,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              '9:41',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontFamily: 'SF Pro',
+                fontWeight: FontWeight.w600,
               ),
             ),
-        ],
+            Row(
+              children: [
+                Opacity(
+                  opacity: 0.35,
+                  child: Container(
+                    width: 25,
+                    height: 13,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white, width: 1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Container(
+                  width: 21,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPreviewArea() {
     return Positioned(
-      left: 20,
-      top: 20,
-      right: 20,
-      bottom: 20,
+      left: 10,
+      top: 71,
+      right: 10,
+      bottom: 141, // Space for bottom controls
       child: Container(
         decoration: BoxDecoration(
           color: Colors.black,
@@ -201,16 +228,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _buildCameraControls() {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 50,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Gallery Button
-          GestureDetector(
+    return Stack(
+      children: [
+        // Gallery Button
+        Positioned(
+          left: 30,
+          top: 685,
+          child: GestureDetector(
             onTap: _pickFromGallery,
             child: Container(
               width: 30,
@@ -218,13 +242,25 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(3),
+                image: _capturedFile != null ? DecorationImage(
+                  image: kIsWeb 
+                      ? NetworkImage(_capturedFile!.path) 
+                      : FileImage(File(_capturedFile!.path)) as ImageProvider,
+                  fit: BoxFit.cover,
+                ) : null,
               ),
-              child: const Icon(Icons.photo_library, color: Colors.black, size: 20),
+              child: _capturedFile == null 
+                ? const Icon(Icons.photo_library, color: Colors.black, size: 20)
+                : null,
             ),
           ),
-          
-          // Capture Button
-          GestureDetector(
+        ),
+        
+        // Capture Button
+        Positioned(
+          left: MediaQuery.of(context).size.width / 2 - 26,
+          top: 674,
+          child: GestureDetector(
             onTap: _takePhoto,
             child: Container(
               width: 52,
@@ -245,9 +281,13 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               ),
             ),
           ),
+        ),
 
-          // Switch Camera Button
-          GestureDetector(
+        // Switch Camera Button
+        Positioned(
+          right: 30,
+          top: 685,
+          child: GestureDetector(
             onTap: _switchCamera,
             child: Container(
               width: 30,
@@ -259,8 +299,23 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
               child: const Icon(Icons.flip_camera_ios, color: Colors.white, size: 20),
             ),
           ),
-        ],
-      ),
+        ),
+
+        // Photo/Video Toggles
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 751,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildToggle('╨д╨╛╤В╨╛', isActive: true),
+              const SizedBox(width: 15),
+              _buildToggle('╨Т╨╕╨┤╨╡╨╛', isActive: false),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -274,7 +329,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         children: [
           // Delete/Recap Button
           _buildActionButton(
-            'Удалить', 
+            '╨г╨┤╨░╨╗╨╕╤В╤М', 
             color: Colors.redAccent, 
             icon: Icons.delete_outline,
             onTap: () {
@@ -285,34 +340,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           ),
           // Publish Button
           _buildActionButton(
-            'Опубликовать', 
+            '╨Ю╨┐╤Г╨▒╨╗╨╕╨║╨╛╨▓╨░╤В╤М', 
             color: const Color(0xFFFF8E30), 
             icon: Icons.send,
-            onTap: () async {
-              if (_capturedFile == null || _isUploading) return;
-              
-              setState(() {
-                _isUploading = true;
-              });
-
-              final success = await _storyService.uploadStory(_capturedFile!);
-              
-              if (mounted) {
-                setState(() {
-                  _isUploading = false;
-                });
-
-                if (success) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('История опубликована!'))
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ошибка при публикации истории'))
-                  );
-                }
-              }
+            onTap: () {
+              // TODO: Implement Story upload logic
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('╨Ш╤Б╤В╨╛╤А╨╕╤П ╨╛╨┐╤Г╨▒╨╗╨╕╨║╨╛╨▓╨░╨╜╨░!'))
+              );
             }
           ),
         ],
