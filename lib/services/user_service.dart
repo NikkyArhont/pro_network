@@ -139,4 +139,48 @@ class UserService {
       return null;
     }
   }
+
+  /// Searches for users matching the query, excluding the current user.
+  Future<List<Map<String, dynamic>>> searchUsers(String query, String currentUserId, {List<String>? tags}) async {
+    try {
+      // For a real app with many users, we'd use Algolia. 
+      // For MVP, we'll search by displayName or city.
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('uid', isNotEqualTo: currentUserId)
+          .get();
+
+      print('DEBUG: [UserService] Found ${querySnapshot.docs.length} users in collection "users"');
+
+      final results = querySnapshot.docs.map((doc) => doc.data()).toList();
+
+      return results.where((user) {
+        // 1. Tag filtering (OR logic)
+        if (tags != null && tags.isNotEmpty) {
+          final category = (user['category'] ?? '').toString().toLowerCase();
+          final activity = (user['activity'] ?? '').toString().toLowerCase();
+          final position = (user['position'] ?? '').toString().toLowerCase();
+          
+          final hasMatch = tags.any((tag) {
+            final t = tag.toLowerCase();
+            return category.contains(t) || activity.contains(t) || position.contains(t);
+          });
+          
+          if (!hasMatch) return false;
+        }
+
+        // 2. Query filtering
+        if (query.isEmpty) return true;
+
+        final lowercaseQuery = query.toLowerCase();
+        final name = (user['displayName'] ?? '').toString().toLowerCase();
+        final city = (user['city'] ?? '').toString().toLowerCase();
+        
+        return name.contains(lowercaseQuery) || city.contains(lowercaseQuery);
+      }).toList();
+    } catch (e) {
+      print('Error searching users: $e');
+      return [];
+    }
+  }
 }

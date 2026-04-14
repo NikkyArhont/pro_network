@@ -161,4 +161,58 @@ class BusinessCardService {
       return false;
     }
   }
+
+  /// Searches for active business cards, excluding the current user's cards.
+  Future<List<Map<String, dynamic>>> searchCards({
+    required String query,
+    required String currentUserId,
+    List<String>? tags,
+  }) async {
+    try {
+      Query cardQuery = _firestore
+          .collection('business_cards')
+          .where('isActive', isEqualTo: true); // Only active cards in general search
+
+      final querySnapshot = await cardQuery.get();
+      
+      print('DEBUG: [BusinessCardService] Found ${querySnapshot.docs.length} active cards in collection "business_cards"');
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        print('DEBUG: [BusinessCardService] Card ID: ${doc.id}, Owner ID: ${data['userId']}');
+      }
+
+      final results = querySnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+
+      return results.where((card) {
+        // 1. Exclude my own cards
+        if (card['userId'] == currentUserId) return false;
+
+        // 2. Filter by tags if provided
+        if (tags != null && tags.isNotEmpty) {
+          final cardTags = List<String>.from(card['tags'] ?? []);
+          if (!tags.any((t) => cardTags.contains(t))) return false;
+        }
+
+        // 3. Filter by search text
+        if (query.isEmpty) return true;
+        final lowercaseQuery = query.toLowerCase();
+        final name = (card['name'] ?? '').toString().toLowerCase();
+        final pos = (card['position'] ?? '').toString().toLowerCase();
+        final comp = (card['company'] ?? '').toString().toLowerCase();
+        final city = (card['city'] ?? '').toString().toLowerCase();
+
+        return name.contains(lowercaseQuery) ||
+               pos.contains(lowercaseQuery) ||
+               comp.contains(lowercaseQuery) ||
+               city.contains(lowercaseQuery);
+      }).toList();
+    } catch (e) {
+      print('Error searching business cards: $e');
+      return [];
+    }
+  }
 }

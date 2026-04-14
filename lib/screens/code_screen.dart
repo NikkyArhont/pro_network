@@ -11,6 +11,7 @@ class CodeScreen extends StatefulWidget {
   final bool isLogin;
   final Map<String, String>? profileData;
   final String phoneNumber;
+  final bool isExternal;
 
   const CodeScreen({
     super.key,
@@ -18,6 +19,7 @@ class CodeScreen extends StatefulWidget {
     required this.isLogin,
     this.profileData,
     required this.phoneNumber,
+    this.isExternal = false,
   });
 
   @override
@@ -39,7 +41,26 @@ class _CodeScreenState extends State<CodeScreen> {
   void _verifyCode(String smsCode) async {
     setState(() => _isLoading = true);
     
-    UserCredential? userCredential = await _authService.signInWithCode(widget.verificationId, smsCode);
+    UserCredential? userCredential;
+
+    if (widget.isExternal) {
+      // 1. Verify code and get JWT via Cloud Function
+      final result = await _authService.verifyExternalCode(widget.phoneNumber, smsCode);
+      if (result['success'] == true && result['customToken'] != null) {
+        // 2. Sign in with Custom Token
+        userCredential = await _authService.signInWithCustomToken(result['customToken']);
+      } else {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Неверный код')),
+        );
+        return;
+      }
+    } else {
+      // Standard Firebase Phone Auth
+      userCredential = await _authService.signInWithCode(widget.verificationId, smsCode);
+    }
     
     if (userCredential != null) {
       if (!widget.isLogin && widget.profileData != null) {
@@ -75,7 +96,7 @@ class _CodeScreenState extends State<CodeScreen> {
     } else {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Неверный код')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ошибка входа')));
     }
   }
 

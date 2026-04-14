@@ -117,7 +117,8 @@ class _FeedScreenState extends State<FeedScreen> {
       return _buildSkeletonHeader();
     }
 
-    final String fullName = _userData?['displayName'] ?? 'Имя не указано';
+    final String nameData = _userData?['displayName'] ?? '';
+    final String fullName = nameData.isEmpty ? 'User' : nameData;
     final String photoUrl = _userData?['photoUrl'] ?? '';
     final String position = _userData?['position'] ?? '';
     final String company = _userData?['company'] ?? '';
@@ -147,7 +148,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   image: DecorationImage(
                     image: photoUrl.isNotEmpty 
                         ? NetworkImage(photoUrl) 
-                        : const NetworkImage("https://ui-avatars.com/api/?name=User&size=70"),
+                        : NetworkImage("https://ui-avatars.com/api/?name=${Uri.encodeComponent(fullName)}&size=70&background=random"),
                     fit: BoxFit.cover,
                   ),
                   shape: const OvalBorder(),
@@ -335,7 +336,8 @@ class _FeedScreenState extends State<FeedScreen> {
       future: _userService.getUserData(userId),
       builder: (context, snapshot) {
         final userData = snapshot.data;
-        final String name = userData?['displayName']?.split(' ')[0] ?? '...';
+        final String rawName = userData?['displayName'] ?? '';
+        final String name = rawName.isEmpty ? 'User' : rawName.split(' ')[0];
         final String photoUrl = userData?['photoUrl'] ?? '';
 
         return GestureDetector(
@@ -375,7 +377,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       image: DecorationImage(
                         image: photoUrl.isNotEmpty 
                             ? NetworkImage(photoUrl) 
-                            : const NetworkImage("https://ui-avatars.com/api/?name=User&size=50"),
+                            : NetworkImage("https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&size=50&background=random"),
                         fit: BoxFit.cover,
                       ),
                       shape: const OvalBorder(),
@@ -448,7 +450,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       image: DecorationImage(
                         image: photoUrl.isNotEmpty 
                             ? NetworkImage(photoUrl) 
-                            : const NetworkImage("https://ui-avatars.com/api/?name=User&size=50"),
+                            : NetworkImage("https://ui-avatars.com/api/?name=${Uri.encodeComponent(_userData?['displayName'] ?? 'User')}&size=50&background=random"),
                         fit: BoxFit.cover,
                       ),
                       shape: const OvalBorder(),
@@ -720,7 +722,8 @@ class _FeedScreenState extends State<FeedScreen> {
       future: _userService.getUserData(post.userId),
       builder: (context, snapshot) {
         final userData = snapshot.data;
-        final String name = userData?['displayName'] ?? '...';
+        final String rawName = userData?['displayName'] ?? '';
+        final String name = rawName.isEmpty ? 'User' : rawName;
         final String jobTitle = userData?['jobTitle'] ?? 'Пользователь';
         final String company = userData?['company'] ?? '';
         final String photoUrl = userData?['photoUrl'] ?? '';
@@ -745,7 +748,7 @@ class _FeedScreenState extends State<FeedScreen> {
                           image: DecorationImage(
                             image: photoUrl.isNotEmpty 
                                 ? NetworkImage(photoUrl) 
-                                : const NetworkImage("https://ui-avatars.com/api/?name=User&size=50"),
+                                : NetworkImage("https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&size=50&background=random"),
                             fit: BoxFit.cover,
                           ),
                         ),

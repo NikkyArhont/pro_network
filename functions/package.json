@@ -1,0 +1,13 @@
+{
+  "name": "pro_network_functions",
+  "description": "Cloud Functions for PROnetwork SMS Auth",
+  "dependencies": {
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.1.0",
+    "axios": "^1.6.0"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "private": true
+}

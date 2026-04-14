@@ -118,6 +118,8 @@ class _TagSelectorSheetState extends State<TagSelectorSheet> {
                       hintStyle: TextStyle(color: Color(0xFF637B7E)),
                       border: InputBorder.none,
                       isDense: true,
+                      filled: false,
+                      fillColor: Colors.transparent,
                     ),
                   ),
                 ),
@@ -169,6 +171,33 @@ class _TagSelectorSheetState extends State<TagSelectorSheet> {
             ),
           ),
           const SizedBox(height: 20),
+          // Reset Button
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedTags.clear();
+              });
+              widget.onSave(_selectedTags);
+              Navigator.pop(context);
+            },
+            child: Container(
+              width: double.infinity,
+              height: 40,
+              decoration: ShapeDecoration(
+                color: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  side: const BorderSide(width: 1, color: Color(0xFF557578)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'Сбросить',
+                style: TextStyle(color: Color(0xFF637B7E), fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           // Save Button
           GestureDetector(
             onTap: () {

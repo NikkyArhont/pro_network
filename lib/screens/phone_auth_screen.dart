@@ -23,39 +23,79 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   final TextEditingController _phoneController = TextEditingController();
   bool _isLoading = false;
 
-  void _sendCode() {
+  final List<String> _testNumbers = [
+    '79000000000',
+    '79111111111',
+    '79222222222',
+    '79333333333',
+  ];
+
+  void _sendCode() async {
     final phone = _phoneController.text.trim();
     if (phone.isEmpty) return;
 
     setState(() => _isLoading = true);
 
-    // Normalize phone number: ensure it starts with '+'
+    // Normalize phone number for comparison and Firebase
     String normalizedPhone = phone;
     if (!normalizedPhone.startsWith('+')) {
       normalizedPhone = '+$normalizedPhone';
     }
 
-    _authService.verifyPhoneNumber(
-      phoneNumber: normalizedPhone,
-      onCodeSent: (verificationId) {
-        setState(() => _isLoading = false);
+    // Check if it's a test number (strip '+' for comparison)
+    String cleanPhone = normalizedPhone.replaceAll('+', '');
+    bool isTestNumber = _testNumbers.contains(cleanPhone);
+
+    if (isTestNumber) {
+      print('DEBUG: [Auth] Using Firebase Phone Auth for test number: $normalizedPhone');
+      _authService.verifyPhoneNumber(
+        phoneNumber: normalizedPhone,
+        onCodeSent: (verificationId) {
+          setState(() => _isLoading = false);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CodeScreen(
+                verificationId: verificationId,
+                isLogin: widget.isLogin,
+                profileData: widget.profileData,
+                phoneNumber: normalizedPhone,
+                isExternal: false,
+              ),
+            ),
+          );
+        },
+        onError: (err) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+        },
+      );
+    } else {
+      print('DEBUG: [Auth] Using External API Auth for real number: $normalizedPhone');
+      
+      final result = await _authService.sendExternalCode(normalizedPhone);
+      
+      setState(() => _isLoading = false);
+      
+      if (result['success'] == true) {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => CodeScreen(
-              verificationId: verificationId,
+              verificationId: '', // Not needed for external
               isLogin: widget.isLogin,
               profileData: widget.profileData,
               phoneNumber: normalizedPhone,
+              isExternal: true,
             ),
           ),
         );
-      },
-      onError: (err) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-      },
-    );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Ошибка отправки SMS')),
+        );
+      }
+    }
   }
 
   @override
