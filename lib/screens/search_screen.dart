@@ -124,13 +124,15 @@ class _SearchScreenState extends State<SearchScreen> {
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          onChanged: _onSearchChanged,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _performSearch(),
                           style: const TextStyle(color: Colors.white, fontSize: 14),
                           decoration: const InputDecoration(
-                            hintText: 'Введите специалиста или услугу',
+                            hintText: 'Поиск контактов',
                             hintStyle: TextStyle(color: Color(0xFF637B7E), fontSize: 14),
                             border: InputBorder.none,
-                            filled: false,
+                            contentPadding: EdgeInsets.only(left: 10, bottom: 12),
+                            filled: true,
                             fillColor: Colors.transparent,
                           ),
                         ),
