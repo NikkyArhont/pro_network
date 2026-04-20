@@ -32,6 +32,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void initState() {
     super.initState();
     _markRead();
+    // Re-render when typing to update send button state
+    _messageController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   void _markRead() {
@@ -483,12 +487,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              const Icon(Icons.sentiment_satisfied_alt, color: Color(0xFF3F5659), size: 18),
-              const SizedBox(width: 18),
+               const SizedBox(width: 15),
               GestureDetector(
                 onTap: _sendMessage,
-                child: const Icon(Icons.send_rounded, color: Color(0xFF3F5659), size: 18),
+                child: Icon(
+                  Icons.send_rounded,
+                  color: _messageController.text.trim().isNotEmpty
+                      ? const Color(0xFFFF8E30)
+                      : const Color(0xFF3F5659),
+                  size: 20,
+                ),
               ),
             ],
           ),
