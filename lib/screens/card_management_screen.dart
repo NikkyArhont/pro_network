@@ -219,7 +219,7 @@ class _CardManagementScreenState extends State<CardManagementScreen> {
                   height: 70,
                   decoration: ShapeDecoration(
                     image: DecorationImage(
-                      image: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : const NetworkImage("https://placehold.co/70x70"),
+                      image: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : const NetworkImage("https://ui-avatars.com/api/?name=User&size=70&background=283F41&color=fff"),
                       fit: BoxFit.cover,
                     ),
                     shape: const OvalBorder(),

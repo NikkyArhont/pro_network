@@ -133,7 +133,11 @@ class UserService {
   Future<Map<String, dynamic>?> getUserData(String uid) async {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
-      return doc.data();
+      final data = doc.data();
+      if (data != null && !data.containsKey('uid')) {
+        data['uid'] = doc.id;
+      }
+      return data;
     } catch (e) {
       print('Error fetching user data: $e');
       return null;
@@ -152,7 +156,11 @@ class UserService {
 
       print('DEBUG: [UserService] Found ${querySnapshot.docs.length} users in collection "users"');
 
-      final results = querySnapshot.docs.map((doc) => doc.data()).toList();
+      final results = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        if (!data.containsKey('uid')) data['uid'] = doc.id;
+        return data;
+      }).toList();
 
       return results.where((user) {
         // 1. Tag filtering (OR logic)
@@ -182,5 +190,51 @@ class UserService {
       print('Error searching users: $e');
       return [];
     }
+  }
+
+  /// Toggles subscription status (subscribe/unsubscribe)
+  Future<void> toggleSubscription(String currentUserId, String targetUserId) async {
+    if (currentUserId.isEmpty || targetUserId.isEmpty || currentUserId == targetUserId) return;
+
+    final currentUserRef = _firestore.collection('users').doc(currentUserId);
+    final targetUserRef = _firestore.collection('users').doc(targetUserId);
+
+    return _firestore.runTransaction((transaction) async {
+      final currentUserSnapshot = await transaction.get(currentUserRef);
+      if (!currentUserSnapshot.exists) return;
+
+      final following = List<String>.from(currentUserSnapshot.data()?['following'] ?? []);
+      final bool isCurrentlySubscribed = following.contains(targetUserId);
+
+      if (isCurrentlySubscribed) {
+        // Unsubscribe
+        transaction.update(currentUserRef, {
+          'following': FieldValue.arrayRemove([targetUserId])
+        });
+        transaction.update(targetUserRef, {
+          'followers': FieldValue.arrayRemove([currentUserId])
+        });
+      } else {
+        // Subscribe
+        transaction.update(currentUserRef, {
+          'following': FieldValue.arrayUnion([targetUserId])
+        });
+        transaction.update(targetUserRef, {
+          'followers': FieldValue.arrayUnion([currentUserId])
+        });
+      }
+    }).catchError((error) {
+      print('Error toggling subscription: $error');
+      throw error;
+    });
+  }
+
+  /// Returns a stream of current user's following list
+  Stream<List<String>> getUserFollowingStream(String currentUserId) {
+    if (currentUserId.isEmpty) return Stream.value([]);
+    return _firestore.collection('users').doc(currentUserId).snapshots().map((snapshot) {
+      if (!snapshot.exists) return [];
+      return List<String>.from(snapshot.data()?['following'] ?? []);
+    });
   }
 }

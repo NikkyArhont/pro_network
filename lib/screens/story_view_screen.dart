@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/story_model.dart';
 import '../services/story_service.dart';
 import '../services/user_service.dart';
+import '../services/chat_service.dart';
+import 'other_profile_screen.dart';
 
 class StoryViewScreen extends StatefulWidget {
   final List<Story> stories;
@@ -22,8 +25,10 @@ class StoryViewScreen extends StatefulWidget {
 class _StoryViewScreenState extends State<StoryViewScreen> with SingleTickerProviderStateMixin {
   final StoryService _storyService = StoryService();
   final UserService _userService = UserService();
+  final ChatService _chatService = ChatService();
   late PageController _pageController;
   late AnimationController _animationController;
+  final TextEditingController _replyController = TextEditingController();
   int _currentIndex = 0;
   Map<String, dynamic>? _authorData;
 
@@ -47,6 +52,14 @@ class _StoryViewScreenState extends State<StoryViewScreen> with SingleTickerProv
     _loadAuthorData();
     _markCurrentStoryAsViewed();
     _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _pageController.dispose();
+    _replyController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAuthorData() async {
@@ -97,20 +110,61 @@ class _StoryViewScreenState extends State<StoryViewScreen> with SingleTickerProv
     }
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _pageController.dispose();
-    super.dispose();
+  Future<void> _sendReply() async {
+    final text = _replyController.text.trim();
+    if (text.isEmpty) return;
+
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final currentStory = widget.stories[_currentIndex];
+    final storyAuthorId = currentStory.userId;
+    
+    // Stop story while sending
+    _animationController.stop();
+
+    try {
+      final chatId = await _chatService.getOrCreatePersonalChat(currentUserId, storyAuthorId);
+      
+      await _chatService.sendMessage(
+        chatId,
+        currentUserId,
+        text,
+        [currentUserId, storyAuthorId],
+        type: 'story_reply',
+        metadata: {
+          'storyUrl': currentStory.imageUrl,
+          'authorName': _authorData?['displayName'] ?? widget.userName,
+          'authorPhoto': _authorData?['photoUrl'] ?? '',
+        },
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ответ отправлен'), duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка отправки: $e')),
+        );
+        _animationController.forward();
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF01191B),
-      body: SafeArea(
-        bottom: false,
-        child: GestureDetector(
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: SafeArea(
+            bottom: false,
+            child: GestureDetector(
           // Логика тапов
           onTapDown: (details) {
             final screenWidth = MediaQuery.of(context).size.width;
@@ -125,29 +179,7 @@ class _StoryViewScreenState extends State<StoryViewScreen> with SingleTickerProv
           onLongPressEnd: (_) => _animationController.forward(),
           child: Stack(
             children: [
-              // 1. Status Bar
-              Positioned(
-                left: 0, top: 0, right: 0,
-                child: Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('9:41', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600)),
-                      Row(
-                        children: [
-                          const Icon(Icons.signal_cellular_alt, color: Colors.white, size: 18),
-                          const SizedBox(width: 5),
-                          const Icon(Icons.wifi, color: Colors.white, size: 18),
-                          const SizedBox(width: 5),
-                          Transform.rotate(angle: 1.57 * 2, child: const Icon(Icons.battery_full, color: Colors.white, size: 20)),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-              ),
+
 
               // 2. MAIN STORY AREA (Page View)
               Positioned(
@@ -285,54 +317,64 @@ class _StoryViewScreenState extends State<StoryViewScreen> with SingleTickerProv
               ),
 
               // 5. BOTTOM REPLY AREA
-              Positioned(
-                left: 10,
-                right: 10,
-                bottom: 40,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 45,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0C3135),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF557578), width: 1),
-                        ),
-                        child: const Row(
-                          children: [
-                            Text(
-                              'Ответить сообщением',
-                              style: TextStyle(color: Color(0xFF557578), fontSize: 14),
+              if (widget.stories[_currentIndex].userId != FirebaseAuth.instance.currentUser?.uid)
+                Positioned(
+                  left: 10,
+                  right: 10,
+                  bottom: 40 + MediaQuery.of(context).viewInsets.bottom,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 45,
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF557578), width: 1),
+                          ),
+                          child: TextField(
+                            controller: _replyController,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            onTap: () => _animationController.stop(), // Pause on focus
+                            onSubmitted: (_) => _sendReply(),
+                            onChanged: (val) {
+                              setState(() {}); // For active/inactive button state
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Ответить сообщением',
+                              hintStyle: const TextStyle(color: Color(0xFF557578), fontSize: 14),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              isDense: true,
+                              filled: true,
+                              fillColor: Colors.transparent,
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 15),
-                    const Icon(Icons.favorite_border, color: Colors.white, size: 25),
-                    const SizedBox(width: 15),
-                    const Icon(Icons.send_outlined, color: Colors.white, size: 25),
-                    const SizedBox(width: 5),
-                  ],
-                ),
-              ),
-
-              // 6. BOTTOM INDICATOR
-              Positioned(
-                left: 0, right: 0, bottom: 10,
-                child: Center(
-                  child: Container(
-                    width: 139, height: 5,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(100)),
+                      const SizedBox(width: 15),
+                      const Icon(Icons.favorite_border, color: Colors.white, size: 25),
+                      const SizedBox(width: 15),
+                      GestureDetector(
+                        onTap: _replyController.text.trim().isEmpty ? null : _sendReply,
+                        child: Icon(
+                          Icons.send_outlined, 
+                          color: _replyController.text.trim().isEmpty ? const Color(0xFF557578) : Colors.white, 
+                          size: 25
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
                   ),
                 ),
-              ),
+
+
             ],
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

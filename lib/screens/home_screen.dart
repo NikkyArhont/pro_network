@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pro_network/screens/feed_screen.dart';
 import 'package:pro_network/screens/search_screen.dart';
 import 'package:pro_network/screens/chats_screen.dart';
-import 'package:pro_network/screens/contacts_screen.dart';
+import 'package:pro_network/screens/environment_screen.dart';
 import 'package:pro_network/screens/profile_screen.dart';
 import 'package:pro_network/screens/settings_screen.dart';
 import 'package:pro_network/screens/create_card_screen.dart';
@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _screens = const [
     FeedScreen(),       // 0: Главная
-    ContactsScreen(),   // 1: Окружение
+    EnvironmentScreen(), // 1: Окружение
     ChatsScreen(),      // 2: Чаты
     SearchScreen(),     // 3: Поиск
     ProfileScreen(),    // 4: Визитка (Profile for now)

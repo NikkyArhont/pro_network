@@ -8,6 +8,9 @@ import 'package:pro_network/screens/story_view_screen.dart';
 import 'package:pro_network/screens/create_post_screen.dart';
 import 'package:pro_network/models/post_model.dart';
 import 'package:pro_network/services/post_service.dart';
+import 'package:pro_network/screens/profile_screen.dart';
+import 'package:pro_network/widgets/create_content_menu.dart';
+import 'package:pro_network/widgets/comments_bottom_sheet.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -25,10 +28,15 @@ class _FeedScreenState extends State<FeedScreen> {
   final LayerLink _layerLink = LayerLink();
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
+  
+  late Stream<List<String>> _followingStream;
+  late Stream<List<Post>> _postsStream;
 
   @override
   void initState() {
     super.initState();
+    _followingStream = _userService.getUserFollowingStream(_auth.currentUser?.uid ?? '');
+    _postsStream = _postService.getPostsStream();
     _loadUserData();
   }
 
@@ -62,49 +70,61 @@ class _FeedScreenState extends State<FeedScreen> {
           color: const Color(0xFFFF8E30),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              children: [
-                _buildMainProfileHeader(),
-                _buildStoriesSection(),
-                _buildCategoryTabs(),
+            child: StreamBuilder<List<String>>(
+              stream: _followingStream,
+              builder: (context, followingSnapshot) {
+                final followingList = followingSnapshot.data ?? [];
                 
-                // LIVE POSTS FEED
-                StreamBuilder<List<Post>>(
-                  stream: _postService.getPostsStream(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: Padding(
-                        padding: EdgeInsets.all(20.0),
-                        child: CircularProgressIndicator(color: Colors.orange),
-                      ));
-                    }
+                return Column(
+                  children: [
+                    _buildMainProfileHeader(),
+                    _buildStoriesSection(followingList),
+                    _buildCategoryTabs(),
                     
-                    final posts = snapshot.data ?? [];
-                    
-                    if (posts.isEmpty) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 50),
-                          child: Text(
-                            'Лента пуста',
-                            style: TextStyle(color: Color(0xFF637B7E), fontSize: 16),
-                          ),
-                        ),
-                      );
-                    }
+                    // LIVE POSTS FEED
+                    StreamBuilder<List<Post>>(
+                      stream: _postsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: CircularProgressIndicator(color: Colors.orange),
+                          ));
+                        }
+                        
+                        final String currentUserId = _auth.currentUser?.uid ?? '';
+                        final allPosts = snapshot.data ?? [];
+                        final posts = allPosts.where((post) {
+                          return post.userId == currentUserId || followingList.contains(post.userId);
+                        }).toList();
+                        
+                        if (posts.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 50, horizontal: 20),
+                              child: Text(
+                                'У вас пока нет подписок. Перейдите в поиск, чтобы найти интересных людей!',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Color(0xFF637B7E), fontSize: 14),
+                              ),
+                            ),
+                          );
+                        }
 
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: posts.length,
-                      itemBuilder: (context, index) {
-                        return _buildPostItem(posts[index]);
+                        return ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: posts.length,
+                          itemBuilder: (context, index) {
+                            return _buildPostItem(posts[index]);
+                          },
+                        );
                       },
-                    );
-                  },
-                ),
-                const SizedBox(height: 100),
-              ],
+                    ),
+                    const SizedBox(height: 100),
+                  ],
+                );
+              }
             ),
           ),
         ),
@@ -141,17 +161,25 @@ class _FeedScreenState extends State<FeedScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: ShapeDecoration(
-                  image: DecorationImage(
-                    image: photoUrl.isNotEmpty 
-                        ? NetworkImage(photoUrl) 
-                        : NetworkImage("https://ui-avatars.com/api/?name=${Uri.encodeComponent(fullName)}&size=70&background=random"),
-                    fit: BoxFit.cover,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  );
+                },
+                child: Container(
+                  width: 70,
+                  height: 70,
+                  decoration: ShapeDecoration(
+                    image: DecorationImage(
+                      image: photoUrl.isNotEmpty 
+                          ? NetworkImage(photoUrl) 
+                          : NetworkImage("https://ui-avatars.com/api/?name=${Uri.encodeComponent(fullName)}&size=70&background=random"),
+                      fit: BoxFit.cover,
+                    ),
+                    shape: const OvalBorder(),
                   ),
-                  shape: const OvalBorder(),
                 ),
               ),
               const SizedBox(width: 10),
@@ -280,7 +308,7 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  Widget _buildStoriesSection() {
+  Widget _buildStoriesSection(List<String> followingList) {
     final String userPhotoUrl = _userData?['photoUrl'] ?? '';
     final String currentUserId = _auth.currentUser?.uid ?? '';
 
@@ -300,6 +328,9 @@ class _FeedScreenState extends State<FeedScreen> {
           final Map<String, List<Story>> groupedStories = {};
           for (var story in stories) {
             if (story.userId == currentUserId) continue;
+            // Фильтруем по подпискам
+            if (!followingList.contains(story.userId)) continue;
+            
             if (!groupedStories.containsKey(story.userId)) {
               groupedStories[story.userId] = [];
             }
@@ -431,7 +462,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       ),
                     );
                   } else {
-                    _showCreateMenu(context);
+                    CreateContentMenu.show(context, _layerLink);
                   }
                 },
                 child: Container(
@@ -468,7 +499,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     behavior: HitTestBehavior.opaque,
                     onTap: () {
                       print('!!! ADD BUTTON TAPPED !!!');
-                      _showCreateMenu(context);
+                      CreateContentMenu.show(context, _layerLink);
                     },
                     child: Container(
                       padding: const EdgeInsets.all(3), // Увеличиваем зону касания
@@ -507,133 +538,7 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  void _showCreateMenu(BuildContext context) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'AddMenu',
-      barrierColor: Colors.black.withOpacity(0.5),
-      transitionDuration: const Duration(milliseconds: 200),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return GestureDetector(
-          onTap: () => Navigator.pop(context),
-          behavior: HitTestBehavior.opaque,
-          child: Stack(
-            children: [
-              CompositedTransformFollower(
-                link: _layerLink,
-                showWhenUnlinked: false,
-                offset: const Offset(0, 25), // Выравниваем левый край меню по кнопке
-                child: Material(
-                  color: Colors.transparent,
-                  child: GestureDetector(
-                    onTap: () {}, // Запрещаем закрытие при клике по самому меню
-                    child: Container(
-                      width: 169,
-                      decoration: const BoxDecoration(
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0xCC000000),
-                            blurRadius: 20,
-                            offset: Offset(0, 0),
-                            spreadRadius: 0,
-                          )
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Post Option
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const CreatePostScreen()),
-                              );
-                            },
-                            child: Container(
-                              width: 169,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              decoration: const ShapeDecoration(
-                                color: Color(0xFF334D50),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(10),
-                                    topRight: Radius.circular(10),
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.edit_note, color: Colors.white, size: 20),
-                                  const SizedBox(width: 10),
-                                  const Text(
-                                    'Пост',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontFamily: 'Inter',
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          // Separators
-                          Container(width: double.infinity, height: 1, color: const Color(0xFFC6C6C6)),
-                          Container(width: double.infinity, height: 1, color: const Color(0xFFC6C6C6)),
-                          // Story Option
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const CreateStoryScreen()),
-                              );
-                            },
-                            child: Container(
-                              width: 169,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              decoration: const ShapeDecoration(
-                                color: Color(0xFF334D50),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.only(
-                                    bottomLeft: Radius.circular(10),
-                                    bottomRight: Radius.circular(10),
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.add_a_photo_outlined, color: Colors.white, size: 20),
-                                  const SizedBox(width: 10),
-                                  const Text(
-                                    'История',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontFamily: 'Inter',
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+
 
   Widget _buildOtherStoryItem(String name, String photoUrl, bool isUnread) {
     return Container(
@@ -828,6 +733,14 @@ class _FeedScreenState extends State<FeedScreen> {
                               style: TextStyle(color: Color(0xFFC6C6C6), fontSize: 12),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      GestureDetector(
+                        onTap: () => CommentsBottomSheet.show(context, post.id),
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          child: const Icon(Icons.mode_comment_outlined, size: 18, color: Color(0xFFC6C6C6)),
                         ),
                       ),
                     ],

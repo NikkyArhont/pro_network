@@ -246,7 +246,7 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
                         ? (kIsWeb 
                             ? NetworkImage(widget.card.photoFile!.path) 
                             : FileImage(File(widget.card.photoFile!.path)) as ImageProvider)
-                        : const NetworkImage("https://placehold.co/70x70"),
+                        : const NetworkImage("https://ui-avatars.com/api/?name=User&size=70&background=283F41&color=fff"),
                     fit: BoxFit.cover,
                   ),
                   shape: const OvalBorder(),
@@ -502,9 +502,9 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
           itemCount: 9, // Placeholder count
           itemBuilder: (context, index) {
             return Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: NetworkImage("https://placehold.co/115x115"),
+                  image: NetworkImage("https://picsum.photos/seed/${index + 1}/115/115"),
                   fit: BoxFit.cover,
                 ),
               ),

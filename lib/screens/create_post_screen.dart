@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -142,8 +144,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           borderRadius: BorderRadius.circular(10),
                           image: _selectedImage != null
                               ? DecorationImage(
-                                  // Workaround for kIsWeb or local files
-                                  image: NetworkImage(_selectedImage!.path), 
+                                  image: kIsWeb 
+                                    ? NetworkImage(_selectedImage!.path) 
+                                    : FileImage(File(_selectedImage!.path)) as ImageProvider,
                                   fit: BoxFit.cover,
                                 )
                               : null,

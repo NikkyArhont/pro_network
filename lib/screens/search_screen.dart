@@ -6,6 +6,7 @@ import 'package:pro_network/services/business_card_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pro_network/services/chat_service.dart';
 import 'package:pro_network/screens/conversation_screen.dart';
+import 'package:pro_network/screens/other_profile_screen.dart';
 import 'dart:async';
 
 class SearchScreen extends StatefulWidget {
@@ -27,10 +28,14 @@ class _SearchScreenState extends State<SearchScreen> {
   Timer? _debounce;
   final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
   final Map<String, bool> _chatLoadingStates = {};
+  final Map<String, bool> _subLoadingStates = {};
+  
+  late Stream<List<String>> _followingStream;
 
   @override
   void initState() {
     super.initState();
+    _followingStream = _userService.getUserFollowingStream(_currentUserId);
     _performSearch(); // Initial search for all
   }
 
@@ -221,10 +226,19 @@ class _SearchScreenState extends State<SearchScreen> {
                     ),
                   )
                 else
-                  ..._searchResults.map((data) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _buildSearchResultCard(data),
-                  )),
+                  StreamBuilder<List<String>>(
+                    stream: _followingStream,
+                    builder: (context, followingSnapshot) {
+                      final followingList = followingSnapshot.data ?? [];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _searchResults.map((data) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _buildSearchResultCard(data, followingList),
+                        )).toList(),
+                      );
+                    },
+                  ),
                 
                 const SizedBox(height: 100), // Spacing for bottom menu
               ],
@@ -291,7 +305,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildSearchResultCard(Map<String, dynamic> data) {
+  Widget _buildSearchResultCard(Map<String, dynamic> data, List<String> followingList) {
     final bool isCard = data['searchDisplayType'] == 'card';
     final String name = isCard 
         ? (data['name']?.toString() ?? 'Без имени') 
@@ -315,9 +329,20 @@ class _SearchScreenState extends State<SearchScreen> {
         ? photoUrl 
         : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&size=70&background=283F41&color=fff';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
+    return GestureDetector(
+      onTap: () {
+        if (otherUserId.isNotEmpty && otherUserId != _currentUserId) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OtherProfileScreen(userId: otherUserId),
+            ),
+          );
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
       decoration: ShapeDecoration(
         color: const Color(0xFF0C3135),
         shape: RoundedRectangleBorder(
@@ -496,7 +521,40 @@ class _SearchScreenState extends State<SearchScreen> {
                 spacing: 5,
                 children: [
                   _buildActionIcon(Icons.thumb_up_outlined, hasBadge: true),
-                  _buildActionIcon(Icons.person_outline, hasBadge: true),
+                  _buildActionIcon(
+                    followingList.contains(otherUserId) ? Icons.person_remove : Icons.person_add_outlined, 
+                    hasBadge: followingList.contains(otherUserId),
+                    isLoading: _subLoadingStates[otherUserId] == true,
+                    onTap: () async {
+                      if (_currentUserId.isEmpty || otherUserId.isEmpty) return;
+                      if (_subLoadingStates[otherUserId] == true) return;
+                      
+                      setState(() => _subLoadingStates[otherUserId] = true);
+                      
+                      final isSubscribed = followingList.contains(otherUserId);
+                      try {
+                        await _userService.toggleSubscription(_currentUserId, otherUserId);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(isSubscribed ? 'Вы отписались' : 'Вы подписались'),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                         if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Ошибка: $e')),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() => _subLoadingStates[otherUserId] = false);
+                        }
+                      }
+                    }
+                  ),
                   _buildActionIcon(
                     Icons.chat_bubble_outline, 
                     hasBadge: false,
@@ -533,6 +591,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ],
           ),
         ],
+      ),
       ),
     );
   }

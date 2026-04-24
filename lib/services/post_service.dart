@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import 'package:camera/camera.dart';
 import '../models/post_model.dart';
+import '../models/comment_model.dart';
 
 class PostService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
@@ -77,6 +78,71 @@ class PostService {
   // Механика лайка
   Future<void> toggleLike(String postId, String userId) async {
     final docRef = _firestore.collection('posts').doc(postId);
+    final doc = await docRef.get();
+    
+    if (doc.exists) {
+      final List<dynamic> likes = doc.data()?['likes'] ?? [];
+      if (likes.contains(userId)) {
+        await docRef.update({
+          'likes': FieldValue.arrayRemove([userId])
+        });
+      } else {
+        await docRef.update({
+          'likes': FieldValue.arrayUnion([userId])
+        });
+      }
+    }
+  }
+
+  // --- Комментарии ---
+
+  Future<bool> addComment(String postId, String text, {String? replyToCommentId}) async {
+    final user = _auth.currentUser;
+    if (user == null || text.trim().isEmpty) return false;
+
+    try {
+      final String commentId = _uuid.v4();
+      final comment = Comment(
+        id: commentId,
+        postId: postId,
+        userId: user.uid,
+        text: text.trim(),
+        createdAt: DateTime.now(),
+        replyToCommentId: replyToCommentId,
+      );
+
+      await _firestore
+          .collection('posts')
+          .doc(postId)
+          .collection('comments')
+          .doc(commentId)
+          .set(comment.toMap());
+      return true;
+    } catch (e) {
+      print('Error adding comment: $e');
+      return false;
+    }
+  }
+
+  Stream<List<Comment>> getCommentsStream(String postId) {
+    return _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .orderBy('createdAt', descending: false) // старые сверху
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Comment.fromMap(doc.data(), doc.id)).toList();
+    });
+  }
+
+  Future<void> toggleCommentLike(String postId, String commentId, String userId) async {
+    final docRef = _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .doc(commentId);
+        
     final doc = await docRef.get();
     
     if (doc.exists) {

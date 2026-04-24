@@ -407,7 +407,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   image: DecorationImage(
-                                    image: _photoUrl.isNotEmpty ? NetworkImage(_photoUrl) : const NetworkImage("https://placehold.co/70x70"),
+                                    image: _photoUrl.isNotEmpty ? NetworkImage(_photoUrl) : const NetworkImage("https://ui-avatars.com/api/?name=User&size=70&background=283F41&color=fff"),
                                     fit: BoxFit.cover,
                                   ),
                                 ),

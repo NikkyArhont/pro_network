@@ -1,8 +1,16 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../services/chat_service.dart';
 import '../models/message_model.dart';
 import '../models/chat_model.dart';
+import '../widgets/chat_options_menu.dart';
+import '../widgets/chat_user_options_menu.dart';
+import '../widgets/full_screen_image_viewer.dart';
+import 'other_profile_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String chatId;
@@ -25,7 +33,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final ScrollController _scrollController = ScrollController();
   final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
   final GlobalKey _menuKey = GlobalKey();
+  final GlobalKey _userMenuKey = GlobalKey();
+  final LayerLink _attachLink = LayerLink();
+  final ImagePicker _picker = ImagePicker();
   bool _isSearching = false;
+  bool _isUploading = false;
   String _searchQuery = '';
 
   @override
@@ -83,6 +95,73 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
+  void _pickImage() async {
+    try {
+      final List<XFile> images = await _picker.pickMultiImage();
+      if (images.isEmpty) return;
+
+      setState(() => _isUploading = true);
+
+      for (var image in images) {
+        final bytes = await image.readAsBytes();
+        await _chatService.uploadAndSendMedia(
+          chatId: widget.chatId,
+          senderId: _currentUserId!,
+          participants: [_currentUserId!, widget.otherParticipant['uid'] ?? ''],
+          filePath: image.path,
+          fileName: image.name,
+          type: 'image',
+          bytes: bytes,
+        );
+      }
+
+      _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки фото: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  void _pickFile() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        withData: true,
+        allowMultiple: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      setState(() => _isUploading = true);
+
+      for (var file in result.files) {
+        // On web, accessing file.path throws an error.
+        // We must use file.bytes for web uploads.
+        final String safePath = kIsWeb ? '' : (file.path ?? '');
+        final Uint8List safeBytes = file.bytes ?? Uint8List(0);
+
+        await _chatService.uploadAndSendMedia(
+          chatId: widget.chatId,
+          senderId: _currentUserId!,
+          participants: [_currentUserId!, widget.otherParticipant['uid'] ?? ''],
+          filePath: safePath,
+          fileName: file.name,
+          type: 'file',
+          bytes: safeBytes,
+        );
+      }
+
+      _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки файла: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,9 +187,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   controller: _scrollController,
                   reverse: true, // Messages from bottom to top
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
-                  itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final message = messages[index];
+                    // Prepend progress item if uploading
+                    if (_isUploading && index == 0) {
+                      return const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Center(child: CircularProgressIndicator(color: Color(0xFFFF8E30), strokeWidth: 2)),
+                      );
+                    }
+                    
+                    final actualIndex = _isUploading ? index - 1 : index;
+                    if (actualIndex < 0) return const SizedBox.shrink();
+                    if (actualIndex >= messages.length) return const SizedBox.shrink();
+
+                    final message = messages[actualIndex];
                     final isMe = message.senderId == _currentUserId;
                     
                     // Logic for date separators
@@ -122,10 +212,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
                       final String currentFormattedDate = "${date.day}.${date.month}.${date.year}";
                       
                       // If it's the last message in the list (oldest), or date changed
-                      if (index == messages.length - 1) {
+                      if (actualIndex == messages.length - 1) {
                         showDate = true;
                       } else {
-                        final prevMessage = messages[index + 1];
+                        final prevMessage = messages[actualIndex + 1];
                         if (prevMessage.createdAt != null) {
                           final prevDate = prevMessage.createdAt!;
                           final String prevFormattedDate = "${prevDate.day}.${prevDate.month}.${prevDate.year}";
@@ -147,6 +237,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                       ],
                     );
                   },
+                  itemCount: messages.length + (_isUploading ? 1 : 0),
                 );
               },
             ),
@@ -199,36 +290,49 @@ class _ConversationScreenState extends State<ConversationScreen> {
         icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
         onPressed: () => Navigator.pop(context),
       ),
-      title: Row(
-        children: [
-          CircleAvatar(
-            radius: 17,
-            backgroundColor: const Color(0xFF557578),
-            backgroundImage: widget.otherParticipant['photoUrl'] != null 
-                ? NetworkImage(widget.otherParticipant['photoUrl']) 
-                : null,
-            child: widget.otherParticipant['photoUrl'] == null 
-                ? const Icon(Icons.person, color: Colors.white, size: 20) 
-                : null,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.otherParticipant['displayName'] ?? 'Пользователь',
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Text(
-                  'в сети', // Placeholder
-                  style: TextStyle(color: Color(0xFF7C9597), fontSize: 11),
-                ),
-              ],
+      title: GestureDetector(
+        onTap: () {
+          final String? otherUid = widget.otherParticipant['uid'] ?? widget.otherParticipant['userId'];
+          if (otherUid != null && !widget.chatId.startsWith('saved_')) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtherProfileScreen(userId: otherUid),
+              ),
+            );
+          }
+        },
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 17,
+              backgroundColor: const Color(0xFF557578),
+              backgroundImage: widget.otherParticipant['photoUrl'] != null 
+                  ? NetworkImage(widget.otherParticipant['photoUrl']) 
+                  : null,
+              child: widget.otherParticipant['photoUrl'] == null 
+                  ? const Icon(Icons.person, color: Colors.white, size: 20) 
+                  : null,
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.otherParticipant['displayName'] ?? 'Пользователь',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const Text(
+                    'в сети', // Placeholder
+                    style: TextStyle(color: Color(0xFF7C9597), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         if (widget.chatId.startsWith('saved_'))
@@ -236,6 +340,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
             key: _menuKey,
             icon: const Icon(Icons.more_vert, color: Colors.white),
             onPressed: () => _showSavedMenu(context),
+          )
+        else
+          IconButton(
+            key: _userMenuKey,
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            onPressed: () => ChatUserOptionsMenu.show(
+              context, 
+              _userMenuKey,
+              onDelete: _confirmDeleteChat,
+            ),
           ),
       ],
     );
@@ -372,6 +486,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Widget _buildMessageBubble(MessageModel message, bool isMe) {
+    if (message.type == 'story_reply') {
+      return _buildStoryReplyBubble(message, isMe);
+    }
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -394,7 +511,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           children: [
             ConstrainedBox(
               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
-              child: _buildHighlightedText(message.text),
+              child: _buildMessageContent(message),
             ),
             const SizedBox(height: 4),
             Row(
@@ -448,6 +565,64 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  Widget _buildMessageContent(MessageModel message) {
+    if (message.type == 'image' && message.mediaUrl != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: () => FullScreenImageViewer.show(context, message.mediaUrl!, message.id),
+            child: Hero(
+              tag: message.id,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  message.mediaUrl!,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return const SizedBox(
+                      width: 150,
+                      height: 150,
+                      child: Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+          if (message.text.isNotEmpty && message.text != 'Фотография')
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: _buildHighlightedText(message.text),
+            ),
+        ],
+      );
+    } else if (message.type == 'file' && message.mediaUrl != null) {
+      return InkWell(
+        onTap: () {
+           // TODO: Open file via url_launcher or similar
+        },
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.description, color: Colors.white, size: 30),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                message.fileName ?? 'Файл',
+                style: const TextStyle(color: Colors.white, decoration: TextDecoration.underline),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return _buildHighlightedText(message.text);
+    }
+  }
+
   Widget _buildMessageInput() {
     return SafeArea(
       child: Container(
@@ -463,7 +638,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.attach_file, color: Color(0xFF3F5659), size: 15),
+              CompositedTransformTarget(
+                link: _attachLink,
+                child: GestureDetector(
+                  onTap: () {
+                    ChatOptionsMenu.show(
+                      context, 
+                      _attachLink,
+                      onImagePick: _pickImage,
+                      onFilePick: _pickFile,
+                    );
+                  },
+                  child: const Icon(Icons.attach_file, color: Colors.white, size: 20),
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: TextField(
@@ -677,5 +865,243 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (d == today) return 'Сегодня';
     if (d == yesterday) return 'Вчера';
     return "${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}";
+  }
+
+  void _confirmDeleteChat() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF0C3135),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF557578), width: 1),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Удалить чат?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Чат и вся история переписки будут удалены навсегда у обоих собеседников.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFFC6C6C6),
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFF557578)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text('Нет', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(context); // Close dialog
+                          try {
+                            await _chatService.deleteChat(widget.chatId);
+                            if (mounted) {
+                              Navigator.pop(context); // Exit chat screen
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Чат удален')),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Ошибка при удалении: $e')),
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF334D50),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Удалить',
+                            style: TextStyle(
+                              color: Color(0xFFFF8E30),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStoryReplyBubble(MessageModel message, bool isMe) {
+    final metadata = message.metadata ?? {};
+    final storyUrl = metadata['storyUrl'] as String? ?? '';
+    final authorName = metadata['authorName'] as String? ?? 'Пользователь';
+    final String timeStr = _formatTime(message.createdAt);
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        width: 180, 
+        height: 85,
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        clipBehavior: Clip.antiAlias,
+        decoration: ShapeDecoration(
+          color: isMe ? const Color(0xFF557578) : const Color(0xFF7C9597),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(12),
+              topRight: const Radius.circular(12),
+              bottomLeft: isMe ? const Radius.circular(12) : Radius.zero,
+              bottomRight: isMe ? Radius.zero : const Radius.circular(12),
+            ),
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Story Info Header
+            Positioned(
+              left: 9,
+              top: 9,
+              child: Container(
+                width: 160,
+                height: 43,
+                padding: const EdgeInsets.all(5),
+                decoration: ShapeDecoration(
+                  color: const Color(0x33000000), 
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: ShapeDecoration(
+                        image: DecorationImage(
+                          image: storyUrl.isNotEmpty 
+                              ? NetworkImage(storyUrl) 
+                              : const NetworkImage("https://placehold.co/30x30"),
+                          fit: BoxFit.cover,
+                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            authorName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const Text(
+                            'История',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 9,
+                              fontFamily: 'Inter',
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Reply Text
+            Positioned(
+              left: 9,
+              top: 57,
+              child: SizedBox(
+                width: 120,
+                child: Text(
+                  message.text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w400,
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            // Time and Status
+            Positioned(
+              right: 8,
+              bottom: 4,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    timeStr,
+                    style: const TextStyle(
+                      color: Color(0xFF334D50),
+                      fontSize: 8,
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  if (isMe) ...[
+                    const SizedBox(width: 3),
+                    Icon(
+                      message.isRead ? Icons.done_all : Icons.done,
+                      size: 10,
+                      color: const Color(0xFF334D50),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

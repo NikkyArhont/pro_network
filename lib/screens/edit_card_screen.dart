@@ -282,7 +282,7 @@ class _EditCardScreenState extends State<EditCardScreen> {
                           width: 70, height: 70,
                           decoration: const ShapeDecoration(
                             image: DecorationImage(
-                              image: NetworkImage("https://placehold.co/70x70"),
+                              image: NetworkImage("https://ui-avatars.com/api/?name=User&size=70&background=283F41&color=fff"),
                               fit: BoxFit.cover,
                             ),
                             shape: OvalBorder(),
