@@ -4,6 +4,7 @@ class ChatOptionsMenu {
   static void show(BuildContext context, LayerLink layerLink, {
     required VoidCallback onImagePick,
     required VoidCallback onFilePick,
+    required VoidCallback onVideoPick,
   }) {
     showGeneralDialog(
       context: context,
@@ -48,6 +49,13 @@ class ChatOptionsMenu {
                             icon: Icons.image_outlined,
                             isFirst: true,
                             onTap: onImagePick,
+                          ),
+                          _buildDivider(),
+                          _buildMenuItem(
+                            context,
+                            'Записать видео',
+                            icon: Icons.videocam_outlined,
+                            onTap: onVideoPick,
                           ),
                           _buildDivider(),
                           _buildMenuItem(

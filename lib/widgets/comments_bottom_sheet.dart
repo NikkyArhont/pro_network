@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/comment_model.dart';
 import '../services/post_service.dart';
 import '../services/user_service.dart';
+import 'comment_item.dart';
 
 class CommentsBottomSheet extends StatefulWidget {
   final String postId;
@@ -241,7 +242,16 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
                             // To know which comment ID to reply to. Replies to replies attach to the parent.
                             final replyTargetId = isReply ? comment.replyToCommentId! : comment.id;
 
-                            return _buildCommentItem(comment, replyTargetId, isReply);
+                            return CommentItem(
+                              comment: comment,
+                              postId: widget.postId,
+                              replyTargetId: replyTargetId,
+                              isReply: isReply,
+                              onReply: _handleReply,
+                              formatTimeAgo: _formatTimeAgo(comment.createdAt),
+                              postService: _postService,
+                              userService: _userService,
+                            );
                           },
                         ),
                       ),
@@ -355,99 +365,4 @@ class _CommentsBottomSheetState extends State<CommentsBottomSheet> {
     );
   }
 
-  Widget _buildCommentItem(Comment comment, String replyTargetId, bool isReply) {
-    final String currentUserId = _auth.currentUser?.uid ?? '';
-    final bool isLiked = comment.likes.contains(currentUserId);
-    
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _getUserData(comment.userId),
-      builder: (context, snapshot) {
-        final userData = snapshot.data ?? {};
-        final rawName = userData['displayName'] ?? '';
-        final name = rawName.isEmpty ? 'User' : rawName;
-        final photoUrl = userData['photoUrl'] ?? '';
-
-        return Padding(
-          padding: EdgeInsets.only(left: isReply ? 30.0 : 0.0, bottom: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 20,
-                        height: 20,
-                        decoration: ShapeDecoration(
-                          image: DecorationImage(
-                            image: photoUrl.isNotEmpty
-                                ? NetworkImage(photoUrl)
-                                : NetworkImage("https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&size=20&background=random"),
-                            fit: BoxFit.cover,
-                          ),
-                          shape: const OvalBorder(),
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        name,
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w400),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        _formatTimeAgo(comment.createdAt),
-                        style: const TextStyle(color: Color(0xFFC6C6C6), fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  const Icon(Icons.more_horiz, color: Color(0xFF515353), size: 16),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Padding(
-                padding: const EdgeInsets.only(left: 25.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      comment.text,
-                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w400),
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => _postService.toggleCommentLike(widget.postId, comment.id, currentUserId),
-                          child: Icon(
-                            isLiked ? Icons.favorite : Icons.favorite_border,
-                            color: isLiked ? Colors.red : const Color(0xFF949494),
-                            size: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${comment.likes.length}',
-                          style: const TextStyle(color: Colors.white, fontSize: 10),
-                        ),
-                        const SizedBox(width: 15),
-                        GestureDetector(
-                          onTap: () => _handleReply(replyTargetId, name),
-                          child: const Text(
-                            'Ответить',
-                            style: TextStyle(color: Color(0xFF949494), fontSize: 10),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-    );
-  }
 }

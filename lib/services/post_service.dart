@@ -158,4 +158,19 @@ class PostService {
       }
     }
   }
+
+  Future<bool> deleteComment(String postId, String commentId) async {
+    try {
+      await _firestore
+          .collection('posts')
+          .doc(postId)
+          .collection('comments')
+          .doc(commentId)
+          .delete();
+      return true;
+    } catch (e) {
+      print('Error deleting comment: $e');
+      return false;
+    }
+  }
 }

@@ -153,6 +153,8 @@ class ChatService {
     String lastMsgText = text;
     if (type == 'image') lastMsgText = '📷 Фотография';
     if (type == 'file') lastMsgText = '📁 Файл: ${fileName ?? ''}';
+    if (type == 'audio') lastMsgText = '🎤 Голосовое сообщение';
+    if (type == 'video') lastMsgText = '🎥 Видеосообщение';
     if (type == 'story_reply') lastMsgText = 'Ответ на историю: $text';
 
     Map<String, dynamic> chatUpdate = {
@@ -196,7 +198,11 @@ class ChatService {
 
     UploadTask uploadTask;
     if (kIsWeb) {
-      uploadTask = ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: type == 'image' ? 'image/jpeg' : 'application/octet-stream'));
+      String contentType = 'application/octet-stream';
+      if (type == 'image') contentType = 'image/jpeg';
+      else if (type == 'audio') contentType = 'audio/m4a';
+      else if (type == 'video') contentType = 'video/mp4';
+      uploadTask = ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: contentType));
     } else {
       uploadTask = ref.putFile(File(filePath));
     }
@@ -207,7 +213,7 @@ class ChatService {
     await sendMessage(
       chatId,
       senderId,
-      type == 'image' ? 'Фотография' : fileName,
+      type == 'image' ? 'Фотография' : (type == 'audio' ? 'Голосовое сообщение' : (type == 'video' ? 'Видеосообщение' : fileName)),
       participants,
       type: type,
       mediaUrl: downloadUrl,

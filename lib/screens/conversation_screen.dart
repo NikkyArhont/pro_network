@@ -1,15 +1,24 @@
+import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+
 import '../services/chat_service.dart';
 import '../models/message_model.dart';
 import '../models/chat_model.dart';
 import '../widgets/chat_options_menu.dart';
 import '../widgets/chat_user_options_menu.dart';
 import '../widgets/full_screen_image_viewer.dart';
+import '../widgets/voice_message_player.dart';
+import '../widgets/video_message_player.dart';
 import 'other_profile_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
@@ -36,9 +45,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final GlobalKey _userMenuKey = GlobalKey();
   final LayerLink _attachLink = LayerLink();
   final ImagePicker _picker = ImagePicker();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  
   bool _isSearching = false;
   bool _isUploading = false;
+  bool _isRecording = false;
   String _searchQuery = '';
+  int _recordDuration = 0;
+  Timer? _recordTimer;
 
   @override
   void initState() {
@@ -61,7 +75,81 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _messageController.dispose();
     _searchController.dispose();
     _scrollController.dispose();
+    _audioRecorder.dispose();
+    _recordTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final dir = await getApplicationDocumentsDirectory();
+        final path = p.join(dir.path, 'audio_${DateTime.now().millisecondsSinceEpoch}.m4a');
+        
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
+          path: path,
+        );
+        setState(() {
+          _isRecording = true;
+          _recordDuration = 0;
+        });
+        
+        _recordTimer = Timer.periodic(const Duration(seconds: 1), (Timer t) {
+          setState(() => _recordDuration++);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка записи: $e')));
+      }
+    }
+  }
+
+  Future<void> _stopRecording({bool send = true}) async {
+    try {
+      _recordTimer?.cancel();
+      final path = await _audioRecorder.stop();
+      setState(() => _isRecording = false);
+      
+      if (send && path != null && _recordDuration > 0) {
+        setState(() => _isUploading = true);
+        
+        final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        Uint8List bytes;
+        
+        if (kIsWeb) {
+          final response = await http.get(Uri.parse(path));
+          bytes = response.bodyBytes;
+        } else {
+          bytes = await File(path).readAsBytes();
+        }
+
+        await _chatService.uploadAndSendMedia(
+          chatId: widget.chatId,
+          senderId: _currentUserId!,
+          participants: [_currentUserId!, widget.otherParticipant['uid'] ?? ''],
+          filePath: kIsWeb ? '' : path,
+          fileName: fileName,
+          type: 'audio',
+          bytes: bytes,
+        );
+
+        _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка отправки аудио: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+  
+  String _formatRecordDuration() {
+    final m = (_recordDuration ~/ 60).toString().padLeft(2, '0');
+    final s = (_recordDuration % 60).toString().padLeft(2, '0');
+    return "$m:$s";
   }
 
   void _sendMessage() async {
@@ -119,6 +207,36 @@ class _ConversationScreenState extends State<ConversationScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки фото: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  void _pickVideo() async {
+    try {
+      final XFile? video = await _picker.pickVideo(source: ImageSource.camera);
+      if (video == null) return;
+
+      setState(() => _isUploading = true);
+      
+      final String safePath = kIsWeb ? '' : video.path;
+      final Uint8List safeBytes = await video.readAsBytes();
+
+      await _chatService.uploadAndSendMedia(
+        chatId: widget.chatId,
+        senderId: _currentUserId!,
+        participants: [_currentUserId!, widget.otherParticipant['uid'] ?? ''],
+        filePath: safePath,
+        fileName: video.name,
+        type: 'video',
+        bytes: safeBytes,
+      );
+
+      _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки видео: $e')));
       }
     } finally {
       if (mounted) setState(() => _isUploading = false);
@@ -598,6 +716,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ),
         ],
       );
+    } else if (message.type == 'audio' && message.mediaUrl != null) {
+      return VoiceMessagePlayer(
+        audioUrl: message.mediaUrl!, 
+        isMe: message.senderId == _currentUserId,
+      );
+    } else if (message.type == 'video' && message.mediaUrl != null) {
+      return VideoMessagePlayer(
+        videoUrl: message.mediaUrl!,
+        isMe: message.senderId == _currentUserId,
+      );
     } else if (message.type == 'file' && message.mediaUrl != null) {
       return InkWell(
         onTap: () {
@@ -638,54 +766,78 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
           child: Row(
             children: [
-              CompositedTransformTarget(
-                link: _attachLink,
-                child: GestureDetector(
-                  onTap: () {
-                    ChatOptionsMenu.show(
-                      context, 
-                      _attachLink,
-                      onImagePick: _pickImage,
-                      onFilePick: _pickFile,
-                    );
-                  },
-                  child: const Icon(Icons.attach_file, color: Colors.white, size: 20),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendMessage(),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: const InputDecoration(
-                    hintText: 'Введите сообщение',
-                    hintStyle: TextStyle(
-                      color: Color(0xFF3F5659),
-                      fontSize: 14,
-                      fontFamily: 'Inter',
-                      letterSpacing: 0.10,
-                    ),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 8),
-                    filled: true,
-                    fillColor: Colors.transparent,
+              if (!_isRecording) ...[
+                CompositedTransformTarget(
+                  link: _attachLink,
+                  child: GestureDetector(
+                    onTap: () {
+                      ChatOptionsMenu.show(
+                        context, 
+                        _attachLink,
+                        onImagePick: _pickImage,
+                        onFilePick: _pickFile,
+                        onVideoPick: _pickVideo,
+                      );
+                    },
+                    child: const Icon(Icons.attach_file, color: Colors.white, size: 20),
                   ),
                 ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: _isRecording
+                  ? Row(
+                      children: [
+                        const Icon(Icons.mic, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatRecordDuration(),
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => _stopRecording(send: false),
+                          child: const Text('Отмена', style: TextStyle(color: Color(0xFF7C9597), fontSize: 14)),
+                        ),
+                      ],
+                    )
+                  : TextField(
+                      controller: _messageController,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: const InputDecoration(
+                        hintText: 'Введите сообщение',
+                        hintStyle: TextStyle(
+                          color: Color(0xFF3F5659),
+                          fontSize: 14,
+                          fontFamily: 'Inter',
+                          letterSpacing: 0.10,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        filled: true,
+                        fillColor: Colors.transparent,
+                      ),
+                    ),
               ),
-               const SizedBox(width: 15),
-              GestureDetector(
-                onTap: _sendMessage,
-                child: Icon(
-                  Icons.send_rounded,
-                  color: _messageController.text.trim().isNotEmpty
-                      ? const Color(0xFFFF8E30)
-                      : const Color(0xFF3F5659),
-                  size: 20,
-                ),
-              ),
+              const SizedBox(width: 15),
+              _isRecording 
+                ? GestureDetector(
+                    onTap: () => _stopRecording(send: true),
+                    child: const Icon(Icons.send_rounded, color: Color(0xFFFF8E30), size: 20),
+                  )
+                : (_messageController.text.trim().isNotEmpty
+                    ? GestureDetector(
+                        onTap: _sendMessage,
+                        child: const Icon(Icons.send_rounded, color: Color(0xFFFF8E30), size: 20),
+                      )
+                    : GestureDetector(
+                        onTap: _startRecording,
+                        child: const Icon(Icons.mic, color: Color(0xFF3F5659), size: 20),
+                      )
+                  ),
             ],
           ),
         ),
