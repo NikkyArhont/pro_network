@@ -4,12 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pro_network/models/business_card_draft.dart';
 import 'package:pro_network/services/business_card_service.dart';
+import 'package:pro_network/services/post_service.dart';
 import 'package:pro_network/screens/card_management_screen.dart';
 import 'package:pro_network/widgets/app_text_field.dart';
 import 'package:pro_network/widgets/business_card_preview.dart';
 import 'package:pro_network/utils/constants.dart';
-import 'package:pro_network/widgets/category_selector_sheet.dart';
+import 'package:pro_network/widgets/options_selector_sheet.dart';
+import 'package:pro_network/data/categories_data.dart';
+import 'package:pro_network/services/tag_service.dart';
 import 'package:pro_network/widgets/work_mode_sheet.dart';
+import 'package:pro_network/widgets/address_selector_sheet.dart';
 
 class CreateCardScreen extends StatefulWidget {
   const CreateCardScreen({super.key});
@@ -24,6 +28,7 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   int _currentStep = 1;
   static const int _totalSteps = 9;
   final BusinessCardService _cardService = BusinessCardService();
+  final PostService _postService = PostService();
   bool _isLoading = false;
 
   // Controllers for text fields
@@ -32,6 +37,9 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   final TextEditingController _directionController = TextEditingController();
   final TextEditingController _positionController = TextEditingController();
   final TextEditingController _companyController = TextEditingController();
+  final TagService _tagService = TagService();
+  List<String> _allTags = [];
+  bool _isLoadingTags = true;
   final TextEditingController _tagsController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
@@ -45,7 +53,30 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   final TextEditingController _servicePriceController = TextEditingController();
   final TextEditingController _postDescriptionController = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    _loadTags();
+  }
+
+  Future<void> _loadTags() async {
+    final tags = await _tagService.getAllTags();
+    if (mounted) {
+      setState(() {
+        _allTags = tags;
+        _isLoadingTags = false;
+      });
+    }
+  }
+
   void _nextStep() {
+    // Explicitly update draft from controllers that use autocomplete
+    if (_currentStep == 2) {
+      _draft.city = _cityController.text;
+    } else if (_currentStep == 7) {
+      _draft.workAddress = _addressController.text;
+    }
+
     if (_currentStep < _totalSteps) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -222,10 +253,43 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   Widget _buildCityStep() {
     return _buildStepBase(
       title: 'Где Вы работаете?',
-      content: AppTextField(
-        controller: _cityController,
-        hintText: 'Введите название города',
-        onChanged: (val) => setState(() => _draft.city = val),
+      content: GestureDetector(
+        onTap: () {
+          AddressSelectorSheet.show(
+            context,
+            title: 'Город',
+            initialValue: _cityController.text,
+            onSelected: (val) {
+              setState(() {
+                _cityController.text = val;
+                _draft.city = val;
+              });
+            },
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          height: 35,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0C3135),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _cityController.text.isNotEmpty ? _cityController.text : 'Введите название города',
+                style: TextStyle(
+                  color: _cityController.text.isNotEmpty ? Colors.white : const Color(0xFF637B7E),
+                  fontSize: 14,
+                ),
+              ),
+              const Icon(Icons.keyboard_arrow_down, color: Color(0xFF637B7E), size: 20),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -263,10 +327,50 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
             ),
             const SizedBox(height: 15),
             _buildFieldLabel('Направление деятельности'),
-            AppTextField(
-              controller: _directionController,
-              hintText: 'Например: Страхование',
-              onChanged: (val) => setState(() => _draft.activityDirection = val),
+            GestureDetector(
+              onTap: () {
+                if (_draft.category.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Сначала выберите категорию')),
+                  );
+                  return;
+                }
+                OptionsSelectorSheet.show(
+                  context,
+                  title: 'Направление деятельности',
+                  initialValue: _draft.activityDirection,
+                  options: CategoriesData.getSubcategories(_draft.category),
+                  onSelected: (val) {
+                    setState(() {
+                      _draft.activityDirection = val;
+                      _directionController.text = val;
+                    });
+                  },
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                height: 35,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0C3135),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _draft.activityDirection.isNotEmpty ? _draft.activityDirection : 'Выберите направление',
+                      style: TextStyle(
+                        color: _draft.activityDirection.isNotEmpty ? Colors.white : const Color(0xFF637B7E),
+                        fontSize: 14,
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down, color: Color(0xFF637B7E), size: 20),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 15),
             _buildFieldLabel('Профессия/должность'),
@@ -289,11 +393,18 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   }
 
   void _showCategoryPicker() {
-    CategorySelectorSheet.show(
+    OptionsSelectorSheet.show(
       context,
-      onSelect: (cat) {
+      title: 'Выберите категорию',
+      initialValue: _draft.category,
+      options: CategoriesData.categories,
+      onSelected: (cat) {
         setState(() {
-          _draft.category = cat;
+          if (_draft.category != cat) {
+            _draft.category = cat;
+            _draft.activityDirection = ''; // Reset on category change
+            _directionController.clear();
+          }
         });
       },
     );
@@ -302,9 +413,12 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
   String _tagSearchQuery = '';
 
   Widget _buildTagsStep() {
-    final filteredTags = AppConstants.allTags
+    final filteredTags = _allTags
         .where((tag) => tag.toLowerCase().contains(_tagSearchQuery.toLowerCase()) && !_draft.tags.contains(tag))
         .toList();
+
+    final hasExactMatch = _allTags.any((tag) => tag.toLowerCase() == _tagSearchQuery.toLowerCase()) ||
+                          _draft.tags.any((tag) => tag.toLowerCase() == _tagSearchQuery.toLowerCase());
 
     return _buildStepBase(
       title: 'Теги',
@@ -319,6 +433,41 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
             ),
             const SizedBox(height: 20),
             
+            if (!hasExactMatch && _tagSearchQuery.isNotEmpty) ...[
+              const Text('Новый тег', style: TextStyle(color: Color(0xFF637B7E), fontSize: 12)),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (!_draft.tags.contains(_tagSearchQuery)) {
+                      _draft.tags.add(_tagSearchQuery);
+                    }
+                    _tagSearchQuery = '';
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0C3135),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFF8E30)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.add, color: Color(0xFFFF8E30), size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Создать тег: "$_tagSearchQuery"',
+                        style: const TextStyle(color: Color(0xFFFF8E30), fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             if (_draft.tags.isNotEmpty) ...[
               const Text('Выбранные теги', style: TextStyle(color: Color(0xFF637B7E), fontSize: 12)),
               const SizedBox(height: 10),
@@ -330,13 +479,15 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
               const SizedBox(height: 20),
             ],
 
-            const Text('Все теги', style: TextStyle(color: Color(0xFF637B7E), fontSize: 12)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: filteredTags.map((tag) => _buildTagItem(tag, isSelected: false)).toList(),
-            ),
+            if (filteredTags.isNotEmpty) ...[
+              const Text('Все теги', style: TextStyle(color: Color(0xFF637B7E), fontSize: 12)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: filteredTags.map((tag) => _buildTagItem(tag, isSelected: false)).toList(),
+              ),
+            ],
           ],
         ),
       ),
@@ -496,10 +647,43 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
         child: Column(
           children: [
             _buildFieldLabel('Адрес работы'),
-            AppTextField(
-              controller: _addressController,
-              hintText: 'г. Москва, ул...',
-              onChanged: (val) => _draft.workAddress = val,
+            GestureDetector(
+              onTap: () {
+                AddressSelectorSheet.show(
+                  context,
+                  title: 'Адрес работы',
+                  initialValue: _addressController.text,
+                  onSelected: (val) {
+                    setState(() {
+                      _addressController.text = val;
+                      _draft.workAddress = val;
+                    });
+                  },
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                height: 35,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0C3135),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _addressController.text.isNotEmpty ? _addressController.text : 'г. Москва, ул...',
+                      style: TextStyle(
+                        color: _addressController.text.isNotEmpty ? Colors.white : const Color(0xFF637B7E),
+                        fontSize: 14,
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down, color: Color(0xFF637B7E), size: 20),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 15),
             _buildFieldLabel('Режим работы'),
@@ -850,13 +1034,23 @@ class _CreateCardScreenState extends State<CreateCardScreen> {
       _draft.postDescription = '';
     }
     
-    final success = await _cardService.createBusinessCard(_draft);
+    final cardId = await _cardService.createBusinessCard(_draft);
+    
+    if (cardId != null && withPost && _draft.postPhotoFile != null) {
+      // Create a news post attached to this card
+      await _postService.createPost(
+        _draft.postPhotoFile!,
+        _draft.postDescription,
+        postType: 'news',
+        cardId: cardId,
+      );
+    }
     
     if (mounted) {
       setState(() => _isLoading = false);
-      if (success) {
+      if (cardId != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(withPost ? 'Визитка и пост успешно опубликованы!' : 'Визитка успешно создана!')),
+          SnackBar(content: Text(withPost && _draft.postPhotoFile != null ? 'Визитка и пост успешно опубликованы!' : 'Визитка успешно создана!')),
         );
         // Navigate to management screen
         Navigator.of(context).pushAndRemoveUntil(

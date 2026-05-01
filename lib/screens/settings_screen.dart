@@ -3,7 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pro_network/screens/auth_choice_screen.dart';
 import 'package:pro_network/screens/profile_edit_screen.dart';
 import 'package:pro_network/screens/card_management_screen.dart';
-import 'package:pro_network/screens/notifications_screen.dart';
+import 'package:pro_network/screens/notification_settings_screen.dart';
+import 'package:pro_network/screens/report_problem_screen.dart';
+import 'package:pro_network/screens/subscription_screen.dart';
+import 'package:pro_network/screens/privacy_security_screen.dart';
 import 'package:pro_network/services/user_service.dart';
 import 'package:pro_network/utils/constants.dart';
 
@@ -213,7 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Уведомления',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                    MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()),
                   ),
                 ),
                 _buildSettingsItem(
@@ -235,9 +238,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     MaterialPageRoute(builder: (_) => const CardManagementScreen()),
                   ),
                 ),
-                _buildSettingsItem(Icons.subscriptions_outlined, 'Подписка'),
-                _buildSettingsItem(Icons.security_outlined, 'Приватность и безопасность'),
-                _buildSettingsItem(Icons.report_problem_outlined, 'Сообщить о проблеме'),
+                _buildSettingsItem(
+                  Icons.subscriptions_outlined, 
+                  'Подписка',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                  ),
+                ),
+                _buildSettingsItem(
+                  Icons.security_outlined, 
+                  'Приватность и безопасность',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PrivacySecurityScreen()),
+                  ),
+                ),
+                _buildSettingsItem(
+                  Icons.report_problem_outlined, 
+                  'Сообщить о проблеме',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ReportProblemScreen()),
+                  ),
+                ),
                 
                 const SizedBox(height: 30),
 

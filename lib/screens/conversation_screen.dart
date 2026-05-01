@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/chat_service.dart';
 import '../models/message_model.dart';
@@ -728,9 +729,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       );
     } else if (message.type == 'file' && message.mediaUrl != null) {
       return InkWell(
-        onTap: () {
-           // TODO: Open file via url_launcher or similar
-        },
+        onTap: () => _confirmDownload(message.mediaUrl!, message.fileName ?? 'Файл'),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1017,6 +1016,103 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (d == today) return 'Сегодня';
     if (d == yesterday) return 'Вчера';
     return "${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}";
+  }
+
+  void _confirmDownload(String url, String fileName) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF0C3135),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF557578), width: 1),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Скачать файл?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  fileName,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFC6C6C6),
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFF557578)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Отмена',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final uri = Uri.parse(url);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          } else {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Не удалось открыть ссылку')),
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF334D50),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Скачать',
+                            style: TextStyle(
+                              color: Color(0xFFFF8E30),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _confirmDeleteChat() {

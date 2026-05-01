@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pro_network/utils/constants.dart';
+import 'package:pro_network/services/tag_service.dart';
 
 class TagSelectorSheet extends StatefulWidget {
   final List<String> initialTags;
@@ -31,11 +32,25 @@ class _TagSelectorSheetState extends State<TagSelectorSheet> {
   late List<String> _selectedTags;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  final TagService _tagService = TagService();
+  List<String> _allTags = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _selectedTags = List.from(widget.initialTags);
+    _loadTags();
+  }
+
+  Future<void> _loadTags() async {
+    final tags = await _tagService.getAllTags();
+    if (mounted) {
+      setState(() {
+        _allTags = tags;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -46,9 +61,12 @@ class _TagSelectorSheetState extends State<TagSelectorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredTags = AppConstants.allTags
+    final filteredTags = _allTags
         .where((tag) => tag.toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
+
+    final hasExactMatch = _allTags.any((tag) => tag.toLowerCase() == _searchQuery.toLowerCase()) ||
+                          _selectedTags.any((tag) => tag.toLowerCase() == _searchQuery.toLowerCase());
 
     return Container(
       width: double.infinity,
@@ -156,16 +174,51 @@ class _TagSelectorSheetState extends State<TagSelectorSheet> {
                     const Divider(color: Color(0xFF0C3135)),
                     const SizedBox(height: 10),
                   ],
-                  const Text(
-                    'Все теги',
-                    style: TextStyle(color: Color(0xFF637B7E), fontSize: 12),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: filteredTags.map((tag) => _buildTag(tag, _selectedTags.contains(tag))).toList(),
-                  ),
+                  if (!hasExactMatch && _searchQuery.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (!_selectedTags.contains(_searchQuery)) {
+                            _selectedTags.add(_searchQuery);
+                          }
+                          _searchQuery = '';
+                          _searchController.clear();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0C3135),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFF8E30)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add, color: Color(0xFFFF8E30), size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Создать тег: "$_searchQuery"',
+                              style: const TextStyle(color: Color(0xFFFF8E30), fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (filteredTags.isNotEmpty) ...[
+                    const Text(
+                      'Все теги',
+                      style: TextStyle(color: Color(0xFF637B7E), fontSize: 12),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: filteredTags.map((tag) => _buildTag(tag, _selectedTags.contains(tag))).toList(),
+                    ),
+                  ],
                 ],
               ),
             ),

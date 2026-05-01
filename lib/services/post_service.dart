@@ -19,7 +19,13 @@ class PostService {
   final _uuid = const Uuid();
 
   // Создание нового поста
-  Future<bool> createPost(XFile file, String text) async {
+  Future<bool> createPost(
+    XFile file, 
+    String text, {
+    String postType = 'standard',
+    DateTime? expiresAt,
+    String? cardId,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) return false;
 
@@ -54,9 +60,14 @@ class PostService {
         text: text,
         imageUrl: imageUrl,
         createdAt: DateTime.now(),
+        postType: postType,
+        expiresAt: expiresAt,
+        cardId: cardId,
       );
 
+      print('DEBUG: Saving post with cardId: $cardId and postType: $postType');
       await _firestore.collection('posts').doc(postId).set(post.toMap());
+      print('DEBUG: Post saved successfully');
       return true;
     } catch (e) {
       print('Error creating post: $e');
@@ -133,6 +144,17 @@ class PostService {
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) => Comment.fromMap(doc.data(), doc.id)).toList();
+    });
+  }
+
+  Stream<List<Post>> getCardPostsStream(String cardId) {
+    return _firestore
+        .collection('posts')
+        .where('cardId', isEqualTo: cardId)
+        // .orderBy('createdAt', descending: true) // Temporarily disabled for debugging
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Post.fromMap(doc.data(), doc.id)).toList();
     });
   }
 

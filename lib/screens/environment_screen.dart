@@ -1,10 +1,44 @@
 import 'package:flutter/material.dart';
 
-class EnvironmentScreen extends StatelessWidget {
+import 'package:pro_network/services/environment_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+class EnvironmentScreen extends StatefulWidget {
   const EnvironmentScreen({super.key});
 
   @override
+  State<EnvironmentScreen> createState() => _EnvironmentScreenState();
+}
+
+class _EnvironmentScreenState extends State<EnvironmentScreen> {
+  final EnvironmentService _environmentService = EnvironmentService();
+  final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+  
+  EnvironmentData? _data;
+  bool _isLoading = true;
+  int _activeCircle = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    final data = await _environmentService.calculateEnvironment(_currentUserId);
+    if (mounted) {
+      setState(() {
+        _data = data;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final circleData = _data?.circles[_activeCircle];
+
     return Scaffold(
       backgroundColor: const Color(0xFF01191B),
       body: SingleChildScrollView(
@@ -25,42 +59,38 @@ class EnvironmentScreen extends StatelessWidget {
                   children: [
                     // Countries Section
                     _buildSection(
-                      title: 'Страны',
-                      children: [
-                        _buildRow('Россия', '11202', Colors.white, Colors.white),
-                        _buildDivider(),
-                        _buildRow('Казахстан', '2345', const Color(0xFF30C6E0), Colors.white),
-                        _buildDivider(),
-                        _buildRow('Испания', '131', const Color(0xFFA41517), Colors.white),
-                      ],
-                      showMore: true,
+                      title: 'Страны/Города',
+                      children: _isLoading 
+                        ? [const Center(child: CircularProgressIndicator(color: Color(0xFFFF8E30)))]
+                        : _buildListWithDividers(
+                            circleData?.topCountries.entries.map((e) => 
+                              _buildRow(e.key, e.value.toString(), const Color(0xFF30C6E0), Colors.white)
+                            ).toList() ?? []
+                          ),
                     ),
                     const SizedBox(height: 5),
                     // Activity Direction Section
                     _buildSection(
                       title: 'Направление деятельности',
-                      children: [
-                        _buildActivityRow('Услуги', '11202'),
-                        _buildDivider(),
-                        _buildActivityRow('Торговля', '2345'),
-                        _buildDivider(),
-                        _buildActivityRow('Производство', '131'),
-                        _buildDivider(),
-                        _buildActivityRow('Инвестиции', '131'),
-                      ],
+                      children: _isLoading 
+                        ? [const Center(child: CircularProgressIndicator(color: Color(0xFFFF8E30)))]
+                        : _buildListWithDividers(
+                            circleData?.topActivities.entries.map((e) => 
+                              _buildActivityRow(e.key, e.value.toString())
+                            ).toList() ?? []
+                          ),
                     ),
                     const SizedBox(height: 5),
                     // Employment Status Section
                     _buildSection(
                       title: 'Статус занятости',
-                      children: [
-                        _buildSimpleRow('Работает на себя', '131'),
-                        _buildDivider(),
-                        _buildSimpleRow('В найме', '11202'),
-                        _buildDivider(),
-                        _buildSimpleRow('Временно не работает', '131'),
-                      ],
-                      showMore: true,
+                      children: _isLoading 
+                        ? [const Center(child: CircularProgressIndicator(color: Color(0xFFFF8E30)))]
+                        : _buildListWithDividers(
+                            circleData?.topStatuses.entries.map((e) => 
+                              _buildSimpleRow(e.key, e.value.toString())
+                            ).toList() ?? []
+                          ),
                     ),
                   ],
                 ),
@@ -91,9 +121,9 @@ class EnvironmentScreen extends StatelessWidget {
                           ),
                           Row(
                             children: [
-                              const Text(
-                                '13678',
-                                style: TextStyle(
+                              Text(
+                                _isLoading ? '...' : (_data?.totalCount.toString() ?? '0'),
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontFamily: 'Inter',
@@ -112,9 +142,9 @@ class EnvironmentScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildCircleTab('1 круг', '888', true),
-                          _buildCircleTab('2 круг', '81345', false),
-                          _buildCircleTab('3 круг', '124588', false),
+                          _buildCircleTab('1 круг', _isLoading ? '-' : (_data?.circles[1]?.count.toString() ?? '0'), _activeCircle == 1, 1),
+                          _buildCircleTab('2 круг', _isLoading ? '-' : (_data?.circles[2]?.count.toString() ?? '0'), _activeCircle == 2, 2),
+                          _buildCircleTab('3 круг', _isLoading ? '-' : (_data?.circles[3]?.count.toString() ?? '0'), _activeCircle == 3, 3),
                         ],
                       ),
                     ],
@@ -126,6 +156,24 @@ class EnvironmentScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildListWithDividers(List<Widget> items) {
+    if (items.isEmpty) {
+      return [const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10),
+        child: Text('Нет данных', style: TextStyle(color: Color(0xFFABABAB), fontSize: 13)),
+      )];
+    }
+    
+    final List<Widget> result = [];
+    for (int i = 0; i < items.length; i++) {
+      result.add(items[i]);
+      if (i < items.length - 1) {
+        result.add(_buildDivider());
+      }
+    }
+    return result;
   }
 
   Widget _buildSection({required String title, required List<Widget> children, bool showMore = false}) {
@@ -298,46 +346,54 @@ class EnvironmentScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCircleTab(String title, String count, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6),
-          width: isActive ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.radio_button_checked,
-            size: 14,
+  Widget _buildCircleTab(String title, String count, bool isActive, int circleIndex) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _activeCircle = circleIndex;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
             color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6),
+            width: isActive ? 2 : 1,
           ),
-          const SizedBox(width: 4),
-          Text(
-            title,
-            style: TextStyle(
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isActive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              size: 14,
               color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6),
-              fontSize: 12,
-              fontFamily: 'Inter',
-              fontWeight: FontWeight.w400,
             ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            count,
-            style: TextStyle(
-              color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6),
-              fontSize: 12,
-              fontFamily: 'Inter',
-              fontWeight: FontWeight.w500,
+            const SizedBox(width: 4),
+            Text(
+              title,
+              style: TextStyle(
+                color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6),
+                fontSize: 12,
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w400,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 4),
+            Text(
+              count,
+              style: TextStyle(
+                color: isActive ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6),
+                fontSize: 12,
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+

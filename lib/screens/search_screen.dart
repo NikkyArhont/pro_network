@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pro_network/services/chat_service.dart';
 import 'package:pro_network/screens/conversation_screen.dart';
 import 'package:pro_network/screens/other_profile_screen.dart';
+import 'package:pro_network/widgets/address_selector_sheet.dart';
 import 'dart:async';
 
 class SearchScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final BusinessCardService _cardService = BusinessCardService();
   
   List<String> _selectedTags = [];
+  String? _selectedCity;
   String _selectedProfileType = 'all';
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
@@ -29,6 +31,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
   final Map<String, bool> _chatLoadingStates = {};
   final Map<String, bool> _subLoadingStates = {};
+  final Map<String, bool> _recLoadingStates = {};
   
   late Stream<List<String>> _followingStream;
 
@@ -66,13 +69,13 @@ class _SearchScreenState extends State<SearchScreen> {
       
       // Conditionally add futures based on profile type
       if (_selectedProfileType == 'all' || _selectedProfileType == 'user') {
-        futures.add(_userService.searchUsers(query, _currentUserId, tags: _selectedTags));
+        futures.add(_userService.searchUsers(query, _currentUserId, tags: _selectedTags, city: _selectedCity));
       } else {
         futures.add(Future.value([]));
       }
 
       if (_selectedProfileType == 'all' || _selectedProfileType == 'card') {
-        futures.add(_cardService.searchCards(query: query, currentUserId: _currentUserId, tags: _selectedTags));
+        futures.add(_cardService.searchCards(query: query, currentUserId: _currentUserId, tags: _selectedTags, city: _selectedCity));
       } else {
         futures.add(Future.value([]));
       }
@@ -150,16 +153,23 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                // Selected Tags Chips
-                if (_selectedTags.isNotEmpty) ...[
+                // Selected Tags and City Chips
+                if (_selectedTags.isNotEmpty || _selectedCity != null) ...[
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
                     child: Row(
-                      children: _selectedTags.map((tag) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: _buildTagChip(tag),
-                      )).toList(),
+                      children: [
+                        if (_selectedCity != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _buildCityChip(_selectedCity!),
+                          ),
+                        ..._selectedTags.map((tag) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _buildTagChip(tag),
+                        )),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 15),
@@ -206,7 +216,23 @@ class _SearchScreenState extends State<SearchScreen> {
                           );
                         },
                       ),
-                      _buildFilterBadge('Город', isActive: true),
+                      _buildFilterBadge(
+                        'Город', 
+                        isActive: _selectedCity != null,
+                        onTap: () {
+                          AddressSelectorSheet.show(
+                            context,
+                            title: 'Выберите город',
+                            initialValue: _selectedCity ?? '',
+                            onSelected: (city) {
+                              setState(() {
+                                _selectedCity = city.isNotEmpty ? city : null;
+                              });
+                              _performSearch();
+                            },
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -295,6 +321,38 @@ class _SearchScreenState extends State<SearchScreen> {
             onTap: () {
               setState(() {
                 _selectedTags.remove(tag);
+              });
+              _performSearch();
+            },
+            child: const Icon(Icons.close, size: 14, color: Color(0xFFFF8E30)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCityChip(String city) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C3135),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFF8E30), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.location_on, size: 14, color: Color(0xFFFF8E30)),
+          const SizedBox(width: 4),
+          Text(
+            city,
+            style: const TextStyle(color: Color(0xFFFF8E30), fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedCity = null;
               });
               _performSearch();
             },
@@ -490,103 +548,146 @@ class _SearchScreenState extends State<SearchScreen> {
             spacing: 10,
             children: [
               Expanded(
-                child: Container(
-                  height: 35,
-                  decoration: ShapeDecoration(
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      side: const BorderSide(
-                        width: 1,
-                        color: Color(0xFF557578),
+                child: StreamBuilder<List<String>>(
+                  stream: isCard 
+                      ? _cardService.getCardRecommendersStream(data['id'] ?? '')
+                      : _userService.getUserRecommendersStream(otherUserId),
+                  builder: (context, snapshot) {
+                    final recCount = snapshot.data?.length ?? 0;
+                    return Container(
+                      height: 35,
+                      decoration: ShapeDecoration(
+                        color: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          side: const BorderSide(
+                            width: 1,
+                            color: Color(0xFF557578),
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'Рекомендую',
-                    style: TextStyle(
-                      color: Color(0xFF334D50),
-                      fontSize: 12,
-                      fontFamily: 'Russo One',
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        recCount > 0 ? 'Рекомендуют: $recCount' : 'Рекомендую',
+                        style: const TextStyle(
+                          color: Color(0xFF334D50),
+                          fontSize: 12,
+                          fontFamily: 'Russo One',
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    );
+                  }
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                spacing: 5,
-                children: [
-                  _buildActionIcon(Icons.thumb_up_outlined, hasBadge: true),
-                  _buildActionIcon(
-                    followingList.contains(otherUserId) ? Icons.person_remove : Icons.person_add_outlined, 
-                    hasBadge: followingList.contains(otherUserId),
-                    isLoading: _subLoadingStates[otherUserId] == true,
-                    onTap: () async {
-                      if (_currentUserId.isEmpty || otherUserId.isEmpty) return;
-                      if (_subLoadingStates[otherUserId] == true) return;
-                      
-                      setState(() => _subLoadingStates[otherUserId] = true);
-                      
-                      final isSubscribed = followingList.contains(otherUserId);
-                      try {
-                        await _userService.toggleSubscription(_currentUserId, otherUserId);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(isSubscribed ? 'Вы отписались' : 'Вы подписались'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
+              StreamBuilder<List<String>>(
+                stream: isCard 
+                    ? _cardService.getCardRecommendersStream(data['id'] ?? '')
+                    : _userService.getUserRecommendersStream(otherUserId),
+                builder: (context, snapshot) {
+                  final recommenders = snapshot.data ?? [];
+                  final isRecommended = recommenders.contains(_currentUserId);
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    spacing: 5,
+                    children: [
+                      _buildActionIcon(
+                        isRecommended ? Icons.thumb_up : Icons.thumb_up_outlined,
+                        hasBadge: isRecommended,
+                        isLoading: _recLoadingStates[isCard ? data['id'] : otherUserId] == true,
+                        onTap: () async {
+                          final targetId = isCard ? data['id'] : otherUserId;
+                          if (_currentUserId.isEmpty || targetId == null || targetId.isEmpty) return;
+                          if (_recLoadingStates[targetId] == true) return;
+                          
+                          setState(() => _recLoadingStates[targetId] = true);
+                          try {
+                            if (isCard) {
+                              await _cardService.toggleRecommendation(_currentUserId, targetId);
+                            } else {
+                              await _userService.toggleRecommendation(_currentUserId, targetId);
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _recLoadingStates[targetId] = false);
+                            }
+                          }
+                        },
+                      ),
+                      _buildActionIcon(
+                        followingList.contains(otherUserId) ? Icons.person_remove : Icons.person_add_outlined, 
+                        hasBadge: followingList.contains(otherUserId),
+                        isLoading: _subLoadingStates[otherUserId] == true,
+                        onTap: () async {
+                          if (_currentUserId.isEmpty || otherUserId.isEmpty) return;
+                          if (_subLoadingStates[otherUserId] == true) return;
+                          
+                          setState(() => _subLoadingStates[otherUserId] = true);
+                          
+                          final isSubscribed = followingList.contains(otherUserId);
+                          try {
+                            await _userService.toggleSubscription(_currentUserId, otherUserId);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(isSubscribed ? 'Вы отписались' : 'Вы подписались'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                             if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Ошибка: $e')),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _subLoadingStates[otherUserId] = false);
+                            }
+                          }
                         }
-                      } catch (e) {
-                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Ошибка: $e')),
-                          );
-                        }
-                      } finally {
-                        if (mounted) {
-                          setState(() => _subLoadingStates[otherUserId] = false);
-                        }
-                      }
-                    }
-                  ),
-                  _buildActionIcon(
-                    Icons.chat_bubble_outline, 
-                    hasBadge: false,
-                    isLoading: _chatLoadingStates[otherUserId] == true,
-                    onTap: () async {
-                      if (_currentUserId.isEmpty || otherUserId.isEmpty) return;
-                      
-                      if (_chatLoadingStates[otherUserId] == true) return;
-                      setState(() => _chatLoadingStates[otherUserId] = true);
-                      
-                      try {
-                        final chatId = await ChatService().getOrCreatePersonalChat(_currentUserId, otherUserId);
-                        
-                        if (mounted) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ConversationScreen(
-                                chatId: chatId,
-                                otherParticipant: data,
-                              ),
-                            ),
-                          );
-                        }
-                      } finally {
-                        if (mounted) {
-                          setState(() => _chatLoadingStates[otherUserId] = false);
-                        }
-                      }
-                    },
-                  ),
-                ],
+                      ),
+                      _buildActionIcon(
+                        Icons.chat_bubble_outline, 
+                        hasBadge: false,
+                        isLoading: _chatLoadingStates[otherUserId] == true,
+                        onTap: () async {
+                          if (_currentUserId.isEmpty || otherUserId.isEmpty) return;
+                          
+                          if (_chatLoadingStates[otherUserId] == true) return;
+                          setState(() => _chatLoadingStates[otherUserId] = true);
+                          
+                          try {
+                            final chatId = await ChatService().getOrCreatePersonalChat(_currentUserId, otherUserId);
+                            
+                            if (mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ConversationScreen(
+                                    chatId: chatId,
+                                    otherParticipant: data,
+                                  ),
+                                ),
+                              );
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _chatLoadingStates[otherUserId] = false);
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  );
+                }
               ),
             ],
           ),

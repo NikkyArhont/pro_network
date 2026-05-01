@@ -6,6 +6,8 @@ import 'package:pro_network/services/chat_service.dart';
 import 'package:pro_network/services/user_service.dart';
 import 'package:pro_network/screens/conversation_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:pro_network/screens/user_posts_screen.dart';
 
 class OtherProfileScreen extends StatefulWidget {
   final String userId;
@@ -17,18 +19,23 @@ class OtherProfileScreen extends StatefulWidget {
 }
 
 class _OtherProfileScreenState extends State<OtherProfileScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
+    app: Firebase.app(),
+    databaseId: 'pronetwork',
+  );
   final PostService _postService = PostService();
   final UserService _userService = UserService();
   final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
   
   bool _isChatLoading = false;
   bool _isSubLoading = false;
+  bool _isRecLoading = false;
   String _selectedInfoTab = 'Описание'; // Описание, Контакты, Прайс
   String _selectedFeedTab = 'Новости'; // Новости, Предложения
 
   late Stream<Map<String, dynamic>?> _userDataStream;
   late Stream<List<String>> _followingStream;
+  late Stream<List<String>> _recommendersStream;
   late Stream<List<Post>> _postsStream;
 
   @override
@@ -40,6 +47,7 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
         .snapshots()
         .map((snap) => snap.data());
     _followingStream = _userService.getUserFollowingStream(_currentUserId);
+    _recommendersStream = _userService.getUserRecommendersStream(widget.userId);
     _postsStream = _postService.getPostsStream();
   }
 
@@ -97,7 +105,7 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
                       const SizedBox(height: 15),
                       _buildInfoCard(userData),
                       const SizedBox(height: 10),
-                      _buildFeedCard(userData),
+                      _buildFeedCard(userData, followingList),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -207,77 +215,63 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Container(
-                  height: 35,
-                  decoration: ShapeDecoration(
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      side: const BorderSide(width: 1, color: Color(0xFF557578)),
-                      borderRadius: BorderRadius.circular(10),
+              StreamBuilder<List<String>>(
+                stream: _recommendersStream,
+                builder: (context, snapshot) {
+                  final recCount = snapshot.data?.length ?? 0;
+                  return Expanded(
+                    child: Container(
+                      height: 35,
+                      decoration: ShapeDecoration(
+                        color: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          side: const BorderSide(width: 1, color: Color(0xFF557578)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        recCount > 0 ? 'Рекомендуют: $recCount' : 'Рекомендуют Друзья Друзей',
+                        style: const TextStyle(
+                          color: Color(0xFF334D50),
+                          fontSize: 11,
+                          fontFamily: 'Russo One',
+                        ),
+                      ),
                     ),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'Рекомендуют Друзья Друзей',
-                    style: TextStyle(
-                      color: Color(0xFF334D50),
-                      fontSize: 11,
-                      fontFamily: 'Russo One',
-                    ),
-                  ),
-                ),
+                  );
+                }
               ),
               const SizedBox(width: 10),
-              Row(
-                spacing: 5,
-                children: [
-                  _buildActionSquareButton(
-                    icon: Icons.thumb_up_outlined,
-                    hasBadge: true,
-                    onTap: () {},
-                  ),
-                  _buildActionSquareButton(
-                    icon: followingList.contains(widget.userId) ? Icons.person_remove : Icons.person_add_outlined,
-                    hasBadge: followingList.contains(widget.userId),
-                    isLoading: _isSubLoading,
-                    onTap: () async {
-                      if (_currentUserId.isEmpty || widget.userId.isEmpty) return;
-                      if (_isSubLoading) return;
-                      
-                      setState(() => _isSubLoading = true);
-                      
-                      final isSubscribed = followingList.contains(widget.userId);
-                      try {
-                        await _userService.toggleSubscription(_currentUserId, widget.userId);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(isSubscribed ? 'Вы отписались' : 'Вы подписались'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Ошибка: $e')),
-                          );
-                        }
-                      } finally {
-                        if (mounted) {
-                          setState(() => _isSubLoading = false);
-                        }
-                      }
-                    },
-                  ),
-                  _buildActionSquareButton(
-                    icon: Icons.chat_bubble_outline,
-                    hasBadge: false,
-                    isLoading: _isChatLoading,
-                    onTap: () => _startChat(userData),
-                  ),
-                ],
+              StreamBuilder<List<String>>(
+                stream: _recommendersStream,
+                builder: (context, snapshot) {
+                  final recommenders = snapshot.data ?? [];
+                  final isRecommended = recommenders.contains(_currentUserId);
+                  return Row(
+                    spacing: 5,
+                    children: [
+                      _buildActionSquareButton(
+                        icon: isRecommended ? Icons.thumb_up : Icons.thumb_up_outlined,
+                        hasBadge: isRecommended,
+                        isLoading: _isRecLoading,
+                        onTap: _toggleRecommendation,
+                      ),
+                      _buildActionSquareButton(
+                        icon: followingList.contains(widget.userId) ? Icons.person_remove : Icons.person_add_outlined,
+                        hasBadge: followingList.contains(widget.userId),
+                        isLoading: _isSubLoading,
+                        onTap: () => _toggleSubscription(followingList),
+                      ),
+                      _buildActionSquareButton(
+                        icon: Icons.chat_bubble_outline,
+                        hasBadge: false,
+                        isLoading: _isChatLoading,
+                        onTap: () => _startChat(userData),
+                      ),
+                    ],
+                  );
+                }
               ),
             ],
           ),
@@ -354,7 +348,8 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     );
   }
 
-  Widget _buildFeedCard(Map<String, dynamic> userData) {
+  Widget _buildFeedCard(Map<String, dynamic> userData, List<String> followingList) {
+    final bool isSubscribed = followingList.contains(widget.userId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -368,19 +363,29 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
                 _buildTab('Предложения', _selectedFeedTab, () => setState(() => _selectedFeedTab = 'Предложения')),
               ],
             ),
-            Row(
-              children: [
-                const Text('Подписаться', style: TextStyle(color: Color(0xFFC6C6C6), fontSize: 12)),
-                const SizedBox(width: 5),
-                Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFF8E30),
-                    shape: BoxShape.circle,
+            GestureDetector(
+              onTap: () => _toggleSubscription(followingList),
+              child: Row(
+                children: [
+                  Text(
+                    isSubscribed ? 'Вы подписаны' : 'Подписаться', 
+                    style: const TextStyle(color: Color(0xFFC6C6C6), fontSize: 12),
                   ),
-                  child: const Icon(Icons.add, size: 12, color: Colors.white),
-                ),
-              ],
+                  const SizedBox(width: 5),
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: isSubscribed ? const Color(0xFF557578) : const Color(0xFFFF8E30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isSubscribed ? Icons.check : Icons.add, 
+                      size: 12, 
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -448,21 +453,33 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
           itemCount: userPosts.length,
           itemBuilder: (context, index) {
             final post = userPosts[index];
-            if (post.imageUrl.isNotEmpty) {
-              return Container(
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: NetworkImage(post.imageUrl),
-                    fit: BoxFit.cover,
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => UserPostsScreen(
+                      posts: userPosts,
+                      initialIndex: index,
+                    ),
                   ),
-                ),
-              );
-            }
-            return Container(
-              color: const Color(0xFF0C3135),
-              child: const Center(
-                child: Icon(Icons.article_outlined, color: Color(0xFF557578)),
-              ),
+                );
+              },
+              child: post.imageUrl.isNotEmpty
+                  ? Container(
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          image: NetworkImage(post.imageUrl),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: const Color(0xFF0C3135),
+                      child: const Center(
+                        child: Icon(Icons.article_outlined, color: Color(0xFF557578)),
+                      ),
+                    ),
             );
           },
         );
@@ -580,6 +597,57 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     } finally {
       if (mounted) {
         setState(() => _isChatLoading = false);
+      }
+    }
+  }
+
+  Future<void> _toggleSubscription(List<String> followingList) async {
+    if (_currentUserId.isEmpty || widget.userId.isEmpty) return;
+    if (_isSubLoading) return;
+    
+    setState(() => _isSubLoading = true);
+    
+    final isSubscribed = followingList.contains(widget.userId);
+    try {
+      await _userService.toggleSubscription(_currentUserId, widget.userId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isSubscribed ? 'Вы отписались' : 'Вы подписались'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubLoading = false);
+      }
+    }
+  }
+
+  Future<void> _toggleRecommendation() async {
+    if (_currentUserId.isEmpty || widget.userId.isEmpty) return;
+    if (_isRecLoading) return;
+    
+    setState(() => _isRecLoading = true);
+    
+    try {
+      await _userService.toggleRecommendation(_currentUserId, widget.userId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка рекомендации: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRecLoading = false);
       }
     }
   }

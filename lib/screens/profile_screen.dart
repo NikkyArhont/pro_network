@@ -8,6 +8,7 @@ import 'package:pro_network/screens/profile_edit_screen.dart';
 import 'package:pro_network/screens/create_post_screen.dart';
 import 'package:pro_network/widgets/create_content_menu.dart';
 import 'package:pro_network/screens/auth_choice_screen.dart';
+import 'package:pro_network/screens/user_posts_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -367,21 +368,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   itemBuilder: (context, index) {
                     final post = myPosts[index];
                     final imageUrl = post.imageUrl;
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0C3135),
-                        image: imageUrl.isNotEmpty
-                            ? DecorationImage(
-                                image: NetworkImage(imageUrl),
-                                fit: BoxFit.cover,
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => UserPostsScreen(
+                              posts: myPosts,
+                              initialIndex: index,
+                              title: 'Личная лента',
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0C3135),
+                          image: imageUrl.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(imageUrl),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: imageUrl.isEmpty
+                            ? const Center(
+                                child: Icon(Icons.article_outlined, color: Color(0xFF557578), size: 30),
                               )
                             : null,
                       ),
-                      child: imageUrl.isEmpty
-                          ? const Center(
-                              child: Icon(Icons.article_outlined, color: Color(0xFF557578), size: 30),
-                            )
-                          : null,
                     );
                   },
                 );

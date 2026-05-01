@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:pro_network/models/business_card_draft.dart';
-import 'package:pro_network/widgets/category_selector_sheet.dart';
+import 'package:pro_network/widgets/options_selector_sheet.dart';
+import 'package:pro_network/data/categories_data.dart';
 import 'package:pro_network/widgets/work_mode_sheet.dart';
 import 'package:pro_network/widgets/tag_selector_sheet.dart';
 import 'package:pro_network/services/business_card_service.dart';
+import 'package:pro_network/widgets/address_selector_sheet.dart';
 
 class EditCardScreen extends StatefulWidget {
   final BusinessCardDraft card;
@@ -321,24 +323,48 @@ class _EditCardScreenState extends State<EditCardScreen> {
                   _buildInputField('Компания', _companyController),
                   _buildSelectableField(
                     'Категория', 
-                    _selectedCategory,
+                    _selectedCategory.isEmpty ? 'Выберите категорию' : _selectedCategory,
                     onTap: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (context) => CategorySelectorSheet(
-                          onCategorySelected: (category) {
-                            setState(() {
+                      OptionsSelectorSheet.show(
+                        context,
+                        title: 'Выберите категорию',
+                        initialValue: _selectedCategory,
+                        options: CategoriesData.categories,
+                        onSelected: (category) {
+                          setState(() {
+                            if (_selectedCategory != category) {
                               _selectedCategory = category;
-                            });
-                          },
-                        ),
+                              _directionController.clear(); // Reset on change
+                            }
+                          });
+                        },
                       );
                     },
                   ),
-                  _buildInputField('Направление деятельности', _directionController),
-                  _buildInputField('Местоположение', _cityController),
+                  _buildSelectableField(
+                    'Направление деятельности', 
+                    _directionController.text.isEmpty ? 'Выберите направление' : _directionController.text,
+                    onTap: () {
+                      if (_selectedCategory.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Сначала выберите категорию')),
+                        );
+                        return;
+                      }
+                      OptionsSelectorSheet.show(
+                        context,
+                        title: 'Направление деятельности',
+                        initialValue: _directionController.text,
+                        options: CategoriesData.getSubcategories(_selectedCategory),
+                        onSelected: (val) {
+                          setState(() {
+                            _directionController.text = val;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                  _buildInputField('Местоположение', _cityController, isAddress: true),
                   
                   const SizedBox(height: 30),
                   _buildSectionTitle('Информация'),
@@ -447,7 +473,7 @@ class _EditCardScreenState extends State<EditCardScreen> {
     );
   }
 
-  Widget _buildInputField(String label, TextEditingController controller) {
+  Widget _buildInputField(String label, TextEditingController controller, {bool isAddress = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -460,21 +486,60 @@ class _EditCardScreenState extends State<EditCardScreen> {
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
           ),
-          TextField(
-            controller: controller,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: label,
-              hintStyle: const TextStyle(color: Color(0xFF637B7E)),
-              filled: true,
-              fillColor: const Color(0xFF0C3135),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
+          if (isAddress)
+            GestureDetector(
+              onTap: () {
+                AddressSelectorSheet.show(
+                  context,
+                  title: label,
+                  initialValue: controller.text,
+                  onSelected: (val) {
+                    setState(() {
+                      controller.text = val;
+                    });
+                  },
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0C3135),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        controller.text.isNotEmpty ? controller.text : label,
+                        style: TextStyle(
+                          color: controller.text.isNotEmpty ? Colors.white : const Color(0xFF637B7E),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down, color: Color(0xFF637B7E)),
+                  ],
+                ),
+              ),
+            )
+          else
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: label,
+                hintStyle: const TextStyle(color: Color(0xFF637B7E)),
+                filled: true,
+                fillColor: const Color(0xFF0C3135),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

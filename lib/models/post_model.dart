@@ -7,6 +7,9 @@ class Post {
   final String imageUrl;
   final DateTime createdAt;
   final List<String> likes;
+  final String postType;
+  final DateTime? expiresAt;
+  final String? cardId;
 
   Post({
     required this.id,
@@ -15,6 +18,9 @@ class Post {
     required this.imageUrl,
     required this.createdAt,
     this.likes = const [],
+    this.postType = 'standard',
+    this.expiresAt,
+    this.cardId,
   });
 
   Map<String, dynamic> toMap() {
@@ -25,6 +31,9 @@ class Post {
       'imageUrl': imageUrl,
       'createdAt': Timestamp.fromDate(createdAt),
       'likes': likes,
+      'postType': postType,
+      'expiresAt': expiresAt != null ? Timestamp.fromDate(expiresAt!) : null,
+      'cardId': cardId,
     };
   }
 
@@ -36,6 +45,9 @@ class Post {
       imageUrl: map['imageUrl'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       likes: List<String>.from(map['likes'] ?? []),
+      postType: map['postType'] ?? 'standard',
+      expiresAt: map['expiresAt'] != null ? (map['expiresAt'] as Timestamp).toDate() : null,
+      cardId: map['cardId'],
     );
   }
 }

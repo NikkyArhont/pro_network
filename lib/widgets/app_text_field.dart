@@ -8,6 +8,7 @@ class AppTextField extends StatelessWidget {
   final void Function(String)? onChanged;
   final Widget? prefix;
   final List<TextInputFormatter>? inputFormatters;
+  final bool enabled;
 
   const AppTextField({
     super.key,
@@ -17,6 +18,7 @@ class AppTextField extends StatelessWidget {
     this.onChanged,
     this.prefix,
     this.inputFormatters,
+    this.enabled = true,
   });
 
   @override
@@ -49,6 +51,7 @@ class AppTextField extends StatelessWidget {
                 height: 35, 
                 child: TextField(
                   controller: controller,
+                  enabled: enabled,
                   keyboardType: keyboardType,
                   inputFormatters: inputFormatters,
                   onChanged: onChanged,

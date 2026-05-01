@@ -12,6 +12,10 @@ import 'package:pro_network/screens/profile_screen.dart';
 import 'package:pro_network/widgets/create_content_menu.dart';
 import 'package:pro_network/widgets/comments_bottom_sheet.dart';
 import 'package:pro_network/widgets/post_card.dart';
+import 'package:pro_network/screens/notifications_screen.dart';
+import 'package:pro_network/screens/connections_screen.dart';
+import 'package:pro_network/services/notification_service.dart';
+import 'package:pro_network/models/notification_model.dart';
 import 'package:pro_network/services/user_service.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -25,11 +29,13 @@ class _FeedScreenState extends State<FeedScreen> {
   final UserService _userService = UserService();
   final StoryService _storyService = StoryService();
   final PostService _postService = PostService();
+  final NotificationService _notificationService = NotificationService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GlobalKey _addButtonKey = GlobalKey();
   final LayerLink _layerLink = LayerLink();
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
+  int _selectedTabIndex = 0;
   
   late Stream<List<String>> _followingStream;
   late Stream<List<Post>> _postsStream;
@@ -83,7 +89,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     _buildStoriesSection(followingList),
                     _buildCategoryTabs(),
                     
-                    // LIVE POSTS FEED
+                    // POSTS FEED (Filtered by Tab)
                     StreamBuilder<List<Post>>(
                       stream: _postsStream,
                       builder: (context, snapshot) {
@@ -96,18 +102,36 @@ class _FeedScreenState extends State<FeedScreen> {
                         
                         final String currentUserId = _auth.currentUser?.uid ?? '';
                         final allPosts = snapshot.data ?? [];
+                        
                         final posts = allPosts.where((post) {
-                          return post.userId == currentUserId || followingList.contains(post.userId);
+                          if (_selectedTabIndex == 0) {
+                            return post.postType == 'standard' && 
+                                   (post.userId == currentUserId || followingList.contains(post.userId));
+                          } else if (_selectedTabIndex == 1) {
+                            return post.postType == 'news';
+                          } else if (_selectedTabIndex == 2) {
+                            return post.postType == 'offer';
+                          }
+                          return false;
                         }).toList();
                         
                         if (posts.isEmpty) {
-                          return const Center(
+                          String emptyMessage = 'Здесь пока ничего нет.';
+                          if (_selectedTabIndex == 0) {
+                            emptyMessage = 'У вас пока нет подписок. Перейдите в поиск, чтобы найти интересных людей!';
+                          } else if (_selectedTabIndex == 1) {
+                            emptyMessage = 'Пока нет свежих новостей.';
+                          } else if (_selectedTabIndex == 2) {
+                            emptyMessage = 'Пока нет актуальных предложений.';
+                          }
+                          
+                          return Center(
                             child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 50, horizontal: 20),
+                              padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
                               child: Text(
-                                'У вас пока нет подписок. Перейдите в поиск, чтобы найти интересных людей!',
+                                emptyMessage,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Color(0xFF637B7E), fontSize: 14),
+                                style: const TextStyle(color: Color(0xFF637B7E), fontSize: 14),
                               ),
                             ),
                           );
@@ -127,6 +151,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         );
                       },
                     ),
+                    
                     const SizedBox(height: 100),
                   ],
                 );
@@ -210,16 +235,41 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                         Row(
                           children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const ShapeDecoration(
-                                color: Color(0xFFFF8E30),
-                                shape: OvalBorder(),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                                );
+                              },
+                              child: StreamBuilder<List<NotificationModel>>(
+                                stream: _notificationService.getNotificationsStream(_auth.currentUser?.uid ?? ''),
+                                builder: (context, snapshot) {
+                                  final hasUnread = snapshot.data?.any((n) => !n.isRead) ?? false;
+                                  return Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      const Icon(Icons.notifications_none_outlined, color: Colors.white, size: 22),
+                                      if (hasUnread)
+                                        Positioned(
+                                          right: 2,
+                                          top: 2,
+                                          child: Container(
+                                            width: 8,
+                                            height: 8,
+                                            decoration: const ShapeDecoration(
+                                              color: Color(0xFFFF8E30),
+                                              shape: OvalBorder(),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                }
                               ),
                             ),
                             const SizedBox(width: 15),
-                            const Icon(Icons.more_horiz, color: Colors.white, size: 20),
+                            const Icon(Icons.share, color: Colors.white, size: 20),
                           ],
                         ),
                       ],
@@ -262,8 +312,10 @@ class _FeedScreenState extends State<FeedScreen> {
           const SizedBox(height: 10),
           GestureDetector(
             onTap: () {
-              // TODO: Implement "My Connections" or similar logic
-              print('Svayzi button tapped');
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ConnectionsScreen()),
+              );
             },
             child: Image.asset(
               'assets/images/svayziButton.png',
@@ -596,30 +648,38 @@ class _FeedScreenState extends State<FeedScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: Row(
         children: [
-          _buildTab('Лента', isActive: true),
+          _buildTab('Лента', index: 0),
           const SizedBox(width: 15),
-          _buildTab('Новости'),
+          _buildTab('Новости', index: 1),
           const SizedBox(width: 15),
-          _buildTab('Предложения'),
+          _buildTab('Предложения', index: 2),
         ],
       ),
     );
   }
 
-  Widget _buildTab(String title, {bool isActive = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      decoration: isActive 
-        ? const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.white, width: 1)),
-          )
-        : null,
-      child: Text(
-        title,
-        style: TextStyle(
-          color: isActive ? Colors.white : const Color(0xFFC6C6C6),
-          fontSize: 12,
-          fontFamily: 'Inter',
+  Widget _buildTab(String title, {required int index}) {
+    final bool isActive = _selectedTabIndex == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedTabIndex = index;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        decoration: isActive 
+          ? const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.white, width: 1)),
+            )
+          : null,
+        child: Text(
+          title,
+          style: TextStyle(
+            color: isActive ? Colors.white : const Color(0xFFC6C6C6),
+            fontSize: 12,
+            fontFamily: 'Inter',
+          ),
         ),
       ),
     );

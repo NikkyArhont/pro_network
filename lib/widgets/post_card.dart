@@ -162,31 +162,13 @@ class _PostCardState extends State<PostCard> {
                         child: Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border, 
                           size: 20, 
-                          color: isLiked ? Colors.red : const Color(0xFFC6C6C6)
+                          color: isLiked ? const Color(0xFFFF8E30) : const Color(0xFFC6C6C6)
                         ),
                       ),
                       const SizedBox(width: 5),
                       Text(
                         '${widget.post.likes.length}',
                         style: const TextStyle(color: Color(0xFFC6C6C6), fontSize: 12),
-                      ),
-                      const SizedBox(width: 15),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFC6C6C6)),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.remove_red_eye_outlined, size: 10, color: Color(0xFFC6C6C6)),
-                            const SizedBox(width: 5),
-                            const Text(
-                              '0',
-                              style: TextStyle(color: Color(0xFFC6C6C6), fontSize: 12),
-                            ),
-                          ],
-                        ),
                       ),
                       const SizedBox(width: 15),
                       GestureDetector(

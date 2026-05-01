@@ -12,6 +12,11 @@ import 'package:pro_network/screens/edit_card_screen.dart';
 import 'package:pro_network/services/business_card_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:pro_network/models/post_model.dart';
+import 'package:pro_network/services/post_service.dart';
+import 'package:pro_network/screens/create_card_content_screen.dart';
+import 'package:pro_network/widgets/card_content_menu.dart';
+import 'package:pro_network/screens/user_posts_screen.dart';
 
 class ViewCardScreen extends StatefulWidget {
   final BusinessCardDraft card;
@@ -27,8 +32,10 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
   int _activeTab = 0; // 0: Description, 1: Contacts, 2: Price
   int _newsTab = 0; // 0: News, 1: Proposals
   final BusinessCardService _cardService = BusinessCardService();
+  final PostService _postService = PostService();
   bool _isCardDialogOpen = false;
   bool _isActivating = false;
+  final LayerLink _addMenuLink = LayerLink();
   late BusinessCardDraft _currentCard;
 
   @override
@@ -473,44 +480,157 @@ class _ViewCardScreenState extends State<ViewCardScreen> {
               ],
             ),
             // Add Button
-            Row(
-              spacing: 5,
-              children: [
-                const Text('Добавить', style: TextStyle(color: Color(0xFFC6C6C6), fontSize: 12)),
-                Container(
-                  width: 17,
-                  height: 17,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF8E30),
-                    borderRadius: BorderRadius.circular(8.5),
-                  ),
-                  child: const Icon(Icons.add, size: 12, color: Colors.white),
+            CompositedTransformTarget(
+              link: _addMenuLink,
+              child: GestureDetector(
+                onTap: () {
+                  CardContentMenu.show(
+                    context, 
+                    _addMenuLink,
+                    onPost: () {
+                      if (widget.cardId != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateCardContentScreen(
+                              cardId: widget.cardId!,
+                              initialType: 'news',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    onStory: () {
+                      print('Add Story tapped');
+                      // Story logic will be added if needed
+                    },
+                    onOffer: () {
+                      if (widget.cardId != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateCardContentScreen(
+                              cardId: widget.cardId!,
+                              initialType: 'offer',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  );
+                },
+                child: Row(
+                  spacing: 5,
+                  children: [
+                    const Text('Добавить', style: TextStyle(color: Color(0xFFC6C6C6), fontSize: 12)),
+                    Container(
+                      width: 17,
+                      height: 17,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF8E30),
+                        borderRadius: BorderRadius.circular(8.5),
+                      ),
+                      child: const Icon(Icons.add, size: 12, color: Colors.white),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ],
         ),
         // Grid
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 5,
-            mainAxisSpacing: 5,
-          ),
-          itemCount: 9, // Placeholder count
-          itemBuilder: (context, index) {
-            return Container(
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: NetworkImage("https://picsum.photos/seed/${index + 1}/115/115"),
-                  fit: BoxFit.cover,
-                ),
+        if (widget.cardId == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text(
+                'Сохраните визитку, чтобы добавлять контент',
+                style: TextStyle(color: Color(0xFF637B7E), fontSize: 12),
               ),
-            );
-          },
-        ),
+            ),
+          )
+        else
+          StreamBuilder<List<Post>>(
+            stream: _postService.getCardPostsStream(widget.cardId!),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(color: Color(0xFFFF8E30)),
+                ));
+              }
+
+              final allCardPosts = snapshot.data ?? [];
+              print('DEBUG: Received ${allCardPosts.length} total posts for cardId: ${widget.cardId}');
+              
+              final filteredPosts = allCardPosts.where((post) {
+                if (_newsTab == 0) return post.postType == 'news';
+                if (_newsTab == 1) return post.postType == 'offer';
+                return false;
+              }).toList();
+              
+              print('DEBUG: Filtered to ${filteredPosts.length} posts for tab: $_newsTab');
+
+              if (filteredPosts.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text(
+                      _newsTab == 0 ? 'Здесь пока нет новостей' : 'Здесь пока нет предложений',
+                      style: const TextStyle(color: Color(0xFF637B7E), fontSize: 12),
+                    ),
+                  ),
+                );
+              }
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 5,
+                  mainAxisSpacing: 5,
+                ),
+                itemCount: filteredPosts.length,
+                itemBuilder: (context, index) {
+                  final post = filteredPosts[index];
+                  final bool isExpired = post.expiresAt != null && post.expiresAt!.isBefore(DateTime.now());
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => UserPostsScreen(
+                            posts: filteredPosts,
+                            initialIndex: index,
+                            title: _newsTab == 0 ? 'Новости пользователя' : 'Предложения пользователя',
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          image: NetworkImage(post.imageUrl),
+                          fit: BoxFit.cover,
+                          colorFilter: isExpired 
+                              ? ColorFilter.mode(Colors.black.withOpacity(0.6), BlendMode.darken)
+                              : null,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: isExpired 
+                          ? const Center(
+                              child: Icon(Icons.timer_off_outlined, color: Colors.white70, size: 24),
+                            )
+                          : null,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
       ],
     );
   }

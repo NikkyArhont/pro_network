@@ -72,10 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     onCardTap: (cardData) {
                       Navigator.pop(context);
                       final draft = BusinessCardDraft.fromMap(cardData);
+                      final cardId = cardData['id'] ?? '';
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ViewCardScreen(card: draft),
+                          builder: (_) => ViewCardScreen(card: draft, cardId: cardId),
                         ),
                       );
                     },

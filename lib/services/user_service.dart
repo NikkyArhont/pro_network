@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
+import 'package:pro_network/services/notification_service.dart';
+import 'package:pro_network/models/notification_model.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instanceFor(
@@ -12,6 +14,7 @@ class UserService {
     databaseId: 'pronetwork',
   );
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final NotificationService _notificationService = NotificationService();
 
   /// Ensures that a user document exists in Firestore.
   /// If it doesn't exist, it creates one with basic information.
@@ -145,7 +148,7 @@ class UserService {
   }
 
   /// Searches for users matching the query, excluding the current user.
-  Future<List<Map<String, dynamic>>> searchUsers(String query, String currentUserId, {List<String>? tags}) async {
+  Future<List<Map<String, dynamic>>> searchUsers(String query, String currentUserId, {List<String>? tags, String? city}) async {
     try {
       // For a real app with many users, we'd use Algolia. 
       // For MVP, we'll search by displayName or city.
@@ -177,14 +180,20 @@ class UserService {
           if (!hasMatch) return false;
         }
 
-        // 2. Query filtering
+        // 2. City filtering
+        if (city != null && city.isNotEmpty) {
+          final userCity = (user['city'] ?? '').toString().toLowerCase();
+          if (userCity != city.toLowerCase()) return false;
+        }
+
+        // 3. Query filtering
         if (query.isEmpty) return true;
 
         final lowercaseQuery = query.toLowerCase();
         final name = (user['displayName'] ?? '').toString().toLowerCase();
-        final city = (user['city'] ?? '').toString().toLowerCase();
-        
-        return name.contains(lowercaseQuery) || city.contains(lowercaseQuery);
+        final userCityString = (user['city'] ?? '').toString().toLowerCase();
+
+        return name.contains(lowercaseQuery) || userCityString.contains(lowercaseQuery);
       }).toList();
     } catch (e) {
       print('Error searching users: $e');
@@ -222,6 +231,15 @@ class UserService {
         transaction.update(targetUserRef, {
           'followers': FieldValue.arrayUnion([currentUserId])
         });
+
+        // Send notification
+        _notificationService.sendNotification(
+          toUserId: targetUserId,
+          fromUserId: currentUserId,
+          type: NotificationType.connectionAdded,
+          title: 'Новая подписка',
+          body: 'Вас добавили в СВЯЗИ!',
+        );
       }
     }).catchError((error) {
       print('Error toggling subscription: $error');
@@ -235,6 +253,49 @@ class UserService {
     return _firestore.collection('users').doc(currentUserId).snapshots().map((snapshot) {
       if (!snapshot.exists) return [];
       return List<String>.from(snapshot.data()?['following'] ?? []);
+    });
+  }
+
+  /// Toggles recommendation status (recommend/un-recommend)
+  Future<void> toggleRecommendation(String currentUserId, String targetUserId) async {
+    if (currentUserId.isEmpty || targetUserId.isEmpty || currentUserId == targetUserId) return;
+
+    final targetUserRef = _firestore.collection('users').doc(targetUserId);
+
+    return _firestore.runTransaction((transaction) async {
+      final targetSnapshot = await transaction.get(targetUserRef);
+      if (!targetSnapshot.exists) return;
+
+      final recommenders = List<String>.from(targetSnapshot.data()?['recommenders'] ?? []);
+      final bool isCurrentlyRecommended = recommenders.contains(currentUserId);
+
+      if (isCurrentlyRecommended) {
+        transaction.update(targetUserRef, {
+          'recommenders': FieldValue.arrayRemove([currentUserId])
+        });
+      } else {
+        transaction.update(targetUserRef, {
+          'recommenders': FieldValue.arrayUnion([currentUserId])
+        });
+
+        // Send notification
+        _notificationService.sendNotification(
+          toUserId: targetUserId,
+          fromUserId: currentUserId,
+          type: NotificationType.recommendation,
+          title: 'Новая рекомендация',
+          body: 'Вас рекомендуют!',
+        );
+      }
+    });
+  }
+
+  /// Returns a stream of a user's recommenders
+  Stream<List<String>> getUserRecommendersStream(String userId) {
+    if (userId.isEmpty) return Stream.value([]);
+    return _firestore.collection('users').doc(userId).snapshots().map((snapshot) {
+      if (!snapshot.exists) return [];
+      return List<String>.from(snapshot.data()?['recommenders'] ?? []);
     });
   }
 }

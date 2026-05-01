@@ -3,7 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pro_network/services/user_service.dart';
 import 'package:pro_network/utils/constants.dart';
-import 'package:pro_network/widgets/category_selector_sheet.dart';
+import 'package:pro_network/widgets/options_selector_sheet.dart';
+import 'package:pro_network/data/categories_data.dart';
+import 'package:pro_network/widgets/address_selector_sheet.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -224,11 +226,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   }
 
   void _showCategorySheet() {
-    CategorySelectorSheet.show(
+    OptionsSelectorSheet.show(
       context,
-      onSelect: (category) {
+      title: 'Выберите категорию',
+      initialValue: _categoryController.text,
+      options: CategoriesData.categories,
+      onSelected: (category) {
         setState(() {
-          _categoryController.text = category;
+          if (_categoryController.text != category) {
+            _categoryController.text = category;
+            _activityController.clear(); // Reset on change
+          }
         });
       },
     );
@@ -463,7 +471,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     _buildField('Фамилия', _lastNameController),
                     _buildField('Дата рождения', _birthDateController, hint: '__.__.____'),
                     _buildField('Пол', TextEditingController(text: _selectedGender), isDropdown: true, onTap: _showGenderSheet),
-                    _buildField('Город', _cityController),
+                    _buildField('Город', _cityController, isAddress: true),
                     _buildField('Статус занятости', TextEditingController(text: _selectedStatus), isDropdown: true, onTap: _showEmploymentStatusSheet),
                     _buildField('Должность', _positionController),
                     _buildField('Компания', _companyController),
@@ -477,7 +485,29 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           child: Text('Направление деятельности', style: TextStyle(color: Colors.white, fontSize: 16)),
                         ),
                         const SizedBox(height: 8),
-                        _buildInputField(_activityController),
+                        _buildInputField(
+                          _activityController, 
+                          isDropdown: true,
+                          onTap: () {
+                            if (_categoryController.text.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Сначала выберите категорию')),
+                              );
+                              return;
+                            }
+                            OptionsSelectorSheet.show(
+                              context,
+                              title: 'Направление деятельности',
+                              initialValue: _activityController.text,
+                              options: CategoriesData.getSubcategories(_categoryController.text),
+                              onSelected: (val) {
+                                setState(() {
+                                  _activityController.text = val;
+                                });
+                              },
+                            );
+                          },
+                        ),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           child: Text(
@@ -512,7 +542,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller, {String? hint, bool isDropdown = false, bool isLocked = false, VoidCallback? onTap}) {
+  Widget _buildField(String label, TextEditingController controller, {String? hint, bool isDropdown = false, bool isLocked = false, bool isAddress = false, VoidCallback? onTap}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -521,7 +551,26 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 16)),
         ),
         const SizedBox(height: 8),
-        _buildInputField(controller, hint: hint, isDropdown: isDropdown, isLocked: isLocked, onTap: onTap),
+        if (isAddress)
+          _buildInputField(
+            controller,
+            hint: hint,
+            isDropdown: true,
+            onTap: () {
+              AddressSelectorSheet.show(
+                context,
+                title: label,
+                initialValue: controller.text,
+                onSelected: (val) {
+                  setState(() {
+                    controller.text = val;
+                  });
+                },
+              );
+            },
+          )
+        else
+          _buildInputField(controller, hint: hint, isDropdown: isDropdown, isLocked: isLocked, onTap: onTap),
         const SizedBox(height: 16),
       ],
     );

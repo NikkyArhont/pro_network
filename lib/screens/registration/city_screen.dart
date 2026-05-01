@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:pro_network/widgets/app_text_field.dart';
 import 'package:pro_network/screens/registration/photo_screen.dart';
+import 'package:pro_network/widgets/address_selector_sheet.dart';
+import 'package:pro_network/widgets/app_text_field.dart';
 
 class CityScreen extends StatefulWidget {
   final Map<String, String> profileData;
@@ -86,9 +87,24 @@ class _CityScreenState extends State<CityScreen> {
                   ),
                 ),
                 const SizedBox(height: 48), // Match NameScreen gap
-                AppTextField(
-                  controller: _cityController,
-                  hintText: 'Введите название города',
+                GestureDetector(
+                  onTap: () {
+                    AddressSelectorSheet.show(
+                      context,
+                      title: 'Город',
+                      initialValue: _cityController.text,
+                      onSelected: (val) {
+                        setState(() {
+                          _cityController.text = val;
+                        });
+                      },
+                    );
+                  },
+                  child: AppTextField(
+                    controller: _cityController,
+                    hintText: 'Введите название города',
+                    enabled: false,
+                  ),
                 ),
                 const Spacer(),
                 GestureDetector(
