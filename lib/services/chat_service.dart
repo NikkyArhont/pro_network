@@ -165,10 +165,15 @@ class ChatService {
     };
 
     // Increment unread count for other participants
+    Map<String, dynamic> unreadCountUpdate = {};
     for (var participant in uniqueParticipants) {
       if (participant != senderId) {
-        chatUpdate['unreadCount.$participant'] = FieldValue.increment(1);
+        unreadCountUpdate[participant] = FieldValue.increment(1);
       }
+    }
+
+    if (unreadCountUpdate.isNotEmpty) {
+      chatUpdate['unreadCount'] = unreadCountUpdate;
     }
 
     final chatRef = _firestore.collection('chats').doc(chatId);
@@ -176,8 +181,7 @@ class ChatService {
     print('DEBUG: Sending message to $chatId. Participants to increment: ${uniqueParticipants.where((p) => p != senderId).toList()}');
     print('DEBUG: Update payload: $chatUpdate');
 
-    // Using update instead of set(merge: true) to ensure dot notation works for Nested Maps
-    batch.update(chatRef, chatUpdate);
+    batch.set(chatRef, chatUpdate, SetOptions(merge: true));
 
     await batch.commit();
   }
